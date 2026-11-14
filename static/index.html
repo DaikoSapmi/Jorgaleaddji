@@ -381,28 +381,28 @@
       } else if (lang === 'swe') {
         sourceEl.placeholder = "Skriv eller klistra in svensk text här...";
         targetEl.placeholder = "Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...";
-        translateBtn.innerHTML = `<span>Oversett &amp; korrekturles</span>`;
+        translateBtn.innerHTML = `<span>Jorgalit ja dárkkistit</span>`;
         if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella";
         if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Råutkast (TartuNLP swe→sme)";
         if (stepPill1) stepPill1.textContent = "1. TartuNLP (swe)";
       } else if (lang === 'fin') {
         sourceEl.placeholder = "Kirjoita tai liitä suomenkielinen teksti tähän...";
         targetEl.placeholder = "Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...";
-        translateBtn.innerHTML = `<span>Oversett &amp; korrekturles</span>`;
+        translateBtn.innerHTML = `<span>Jorgalit ja dárkkistit</span>`;
         if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella";
         if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Råutkast (TartuNLP fin→sme)";
         if (stepPill1) stepPill1.textContent = "1. TartuNLP (fin)";
       } else if (lang === 'eng') {
         sourceEl.placeholder = "Type or paste English text here...";
         targetEl.placeholder = "Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...";
-        translateBtn.innerHTML = `<span>Oversett &amp; korrekturles</span>`;
+        translateBtn.innerHTML = `<span>Jorgalit ja dárkkistit</span>`;
         if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella";
         if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Råutkast (TartuNLP eng→sme)";
         if (stepPill1) stepPill1.textContent = "1. TartuNLP (eng)";
       } else {
         sourceEl.placeholder = "Skriv eller lim inn norsk tekst her...";
         targetEl.placeholder = "Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...";
-        translateBtn.innerHTML = `<span>Oversett &amp; korrekturles</span>`;
+        translateBtn.innerHTML = `<span>Jorgalit ja dárkkistit</span>`;
         if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella";
         if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Råutkast (TartuNLP nor→sme)";
         if (stepPill1) stepPill1.textContent = "1. TartuNLP (nor)";
@@ -755,7 +755,7 @@
         btn.disabled = false;
         btn.innerHTML = (currentSourceLang === 'sme')
           ? `<span>Språkvask &amp; korriger</span>`
-          : `<span>Oversett &amp; korrekturles</span>`;
+          : `<span>Jorgalit ja dárkkistit</span>`;
       }
     }
 
