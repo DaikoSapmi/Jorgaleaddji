@@ -477,11 +477,25 @@
       updateCounts();
     }
 
-    function copyResult() {
-      if (!targetEl.value) return;
-      navigator.clipboard.writeText(targetEl.value);
+    async function copyResult() {
+      const textToCopy = document.getElementById('targetText').value;
+      if (!textToCopy) return;
       const copyBtn = document.getElementById('copyBtn');
       const originalText = copyBtn.textContent;
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+      } catch (e) {
+        // Fallback for eldre nettlesere
+        const tempEl = document.createElement('textarea');
+        tempEl.value = textToCopy;
+        tempEl.style.position = 'fixed';
+        tempEl.style.opacity = '0';
+        document.body.appendChild(tempEl);
+        tempEl.focus();
+        tempEl.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempEl);
+      }
       copyBtn.textContent = "Kopiert!";
       copyBtn.classList.add('text-emerald-600');
       statusText.textContent = "Kopiert til utklippstavlen.";
