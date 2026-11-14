@@ -101,30 +101,6 @@
   <!-- Hovedinnhold -->
   <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-4">
 
-    <!-- Samiske spesialtegn og snarveier (slank minimalistisk linje) -->
-    <div class="flex flex-wrap items-center justify-between gap-2 px-1">
-      <div class="flex flex-wrap items-center gap-1">
-        <span class="text-xs text-slate-400 font-medium mr-1">Samiske tegn:</span>
-        <button onclick="insertChar('Á')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Á</button>
-        <button onclick="insertChar('á')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">á</button>
-        <button onclick="insertChar('Č')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Č</button>
-        <button onclick="insertChar('č')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">č</button>
-        <button onclick="insertChar('Đ')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Đ</button>
-        <button onclick="insertChar('đ')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">đ</button>
-        <button onclick="insertChar('Ŋ')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Ŋ</button>
-        <button onclick="insertChar('ŋ')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">ŋ</button>
-        <button onclick="insertChar('Š')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Š</button>
-        <button onclick="insertChar('š')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">š</button>
-        <button onclick="insertChar('Ŧ')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Ŧ</button>
-        <button onclick="insertChar('ŧ')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">ŧ</button>
-        <button onclick="insertChar('Ž')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Ž</button>
-        <button onclick="insertChar('ž')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">ž</button>
-      </div>
-      <div class="text-[11px] text-slate-400">
-        <kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono">⌘ + Enter</kbd> for å oversette
-      </div>
-    </div>
-
     <!-- Fremdriftsindikator (slank og diskret) -->
     <div id="progressContainer" class="hidden bg-white p-3.5 rounded-xl border border-indigo-100 shadow-sm space-y-2 transition-all">
       <div class="flex items-center justify-between text-xs">
@@ -163,12 +139,60 @@
     <!-- Hovedoversetter (To kolonner) -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-      <!-- Venstre: Norsk kilde -->
+      <!-- Venstre: Kilde med språkvelger -->
       <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm flex flex-col overflow-hidden focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-50 transition">
-        <div class="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-          <span class="text-xs font-semibold text-slate-700 tracking-wide uppercase">Norsk</span>
+        <div class="px-4 py-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/60">
+          <!-- Språkvelger som elegant switch -->
+          <div class="inline-flex p-0.5 bg-slate-200/80 rounded-lg text-xs font-medium">
+            <button
+              type="button"
+              id="btnLangNor"
+              onclick="setSourceLang('nor')"
+              class="px-2.5 py-1 rounded-md text-slate-900 bg-white shadow-sm font-semibold transition"
+            >
+              Norsk
+            </button>
+            <button
+              type="button"
+              id="btnLangSwe"
+              onclick="setSourceLang('swe')"
+              class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition"
+            >
+              Svensk
+            </button>
+            <button
+              type="button"
+              id="btnLangFin"
+              onclick="setSourceLang('fin')"
+              class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition"
+            >
+              Finsk
+            </button>
+            <button
+              type="button"
+              id="btnLangEng"
+              onclick="setSourceLang('eng')"
+              class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition"
+            >
+              Engelsk
+            </button>
+            <button
+              type="button"
+              id="btnLangSme"
+              onclick="setSourceLang('sme')"
+              class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition flex items-center space-x-1"
+              title="Språkvask og korrektur av nordsamisk tekst"
+            >
+              <span>Nordsamisk</span>
+              <span class="text-[10px] px-1 py-0.2 bg-indigo-100 text-indigo-700 rounded font-semibold">vask</span>
+            </button>
+          </div>
+
           <div class="flex items-center space-x-3 text-xs">
-            <button onclick="loadExample()" class="text-indigo-600 hover:text-indigo-800 transition">Testeksempel</button>
+            <span class="hidden sm:inline text-[11px] text-slate-400">
+              <kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono">⌘ + Enter</kbd>
+            </span>
+            <button onclick="loadExample()" class="text-indigo-600 hover:text-indigo-800 transition">Eksempel</button>
             <button id="clearBtn" onclick="clearSource()" class="text-slate-400 hover:text-slate-600 transition hidden">Tøm</button>
           </div>
         </div>
@@ -196,7 +220,7 @@
       <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm flex flex-col overflow-hidden focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-50 transition">
         <div class="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
           <div class="flex items-center space-x-2">
-            <span class="text-xs font-semibold text-slate-700 tracking-wide uppercase">Davvisámegiella</span>
+            <span id="targetHeaderLabel" class="text-xs font-semibold text-slate-700 tracking-wide uppercase">Davvisámegiella</span>
             <span id="pipelineBadge" class="hidden px-2 py-0.5 text-[10px] rounded-full font-medium"></span>
           </div>
           <div class="flex items-center space-x-3 text-xs">
@@ -252,7 +276,7 @@
             onclick="switchTab('tartu')"
             class="px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 flex items-center space-x-1.5 transition"
           >
-            <span>Råutkast (TartuNLP)</span>
+            <span id="tabBtnTartuLabel">Råutkast (TartuNLP)</span>
           </button>
         </div>
 
@@ -284,21 +308,33 @@
     <!-- Språkregler & rettesnorer (Kompakt referanse) -->
     <details class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-xs">
       <summary class="font-medium text-slate-700 cursor-pointer hover:text-slate-900 transition flex items-center justify-between">
-        <span>Språkregler fra NRK Sámi Giellagiehtagirji &amp; UiT Giellatekno</span>
+        <span>Språkregler fra Sámi Giellagáldu (Riektačállinrávvagat 2019) &amp; NRK Sámi Giellagiehtagirji</span>
         <span class="text-slate-400 text-[11px]">Vis veiledning &darr;</span>
       </summary>
-      <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-slate-600 leading-relaxed pt-2 border-t border-slate-100">
+      <div class="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-slate-600 leading-relaxed pt-2 border-t border-slate-100">
         <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
           <p class="font-semibold text-slate-800 mb-1">1. Verbspråk &amp; aktiv form</p>
-          <p>Unngå substantivsyke. Gjør tunge substantiv om til verbavledninger (<em>-goahtit, -stit, -lit</em>). Passive setninger på <em>-(oj)uvvot</em> skrives om til aktiv når agenten er kjent.</p>
+          <p>Unngå substantivsyke. Gjør tunge substantiv om til verbavledninger (<em>-goahtit, -stit, -lit</em>). Passive setninger på <em>-(oj)uvvot</em> skrives om til aktiv når den handlende er kjent.</p>
         </div>
         <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
           <p class="font-semibold text-slate-800 mb-1">2. Su vs. iežas &amp; tallord</p>
-          <p>Bruk <em>iežas/iežaset</em> når det viser tilbake til setningens subjekt. Etter tallord over 1 skal substantivet stå i entall genitiv (<em>guokte olbmo bohte</em>).</p>
+          <p>Bruk <em>iežas/iežaset</em> når det viser tilbake til setningens subjekt. Etter tall over 1 skal substantivet stå i entall genitiv (<em>guokte olbmo bohte</em>). Tall under 1 mill. skrives i ett ord (<em>čiežalogigolbma</em>).</p>
         </div>
         <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
           <p class="font-semibold text-slate-800 mb-1">3. Spørrepartikler &amp; reksjon</p>
-          <p>Bruk <em>-go</em> i indirekte spørsmål (<em>In dieđe boahtágo</em>), aldri <em>jos</em>. Bruk <em>vai</em> i spørsmål, ikke <em>dahje</em>. Sjekk riktig kasusstyring for verb.</p>
+          <p>Bruk <em>-go</em> i indirekte spørsmål (<em>In dieđe boahtágo</em>), aldri <em>jos</em>. Bruk <em>vai</em> i spørsmål, ikke <em>dahje</em>. Sjekk riktig kasusstyring for verb (illativ for <em>liikot</em>, lokativ for <em>ballat</em>).</p>
+        </div>
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+          <p class="font-semibold text-slate-800 mb-1">4. Sammensatte ord &amp; bindestrek</p>
+          <p>Bindestrek ved navn, tall, forkortelser (<em>Elle-oambealli, 25-jahkásaš, e-boasta</em>). Mellomrom foran bindestrek ved flerords forledd (<em>Min Áigi -aviisa, New Yorka -mátki</em>). Fellesledd: <em>mánáid- ja nuoraidskuvla</em>.</p>
+        </div>
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+          <p class="font-semibold text-slate-800 mb-1">5. Tegnsetting, tall &amp; sitattegn</p>
+          <p>Komma etter foranstilt leddsetning (<em>Go áhčči boahtá, de...</em>) og foran <em>muhto</em>. Typografiske sitattegn <em>”...”</em>. Tankestrek uten mellomrom ved intervaller (<em>1995–1997, 8–10 km</em>). Mellomrom før prosent (<em>25 %</em>).</p>
+        </div>
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+          <p class="font-semibold text-slate-800 mb-1">6. Store/små forbokstaver &amp; lånord</p>
+          <p>Liten forbokstav på stillinger (<em>direktevra, stáhtaministtar</em>), språk, nasjonaliteter og epoker. Fremmedord på <em>-iija</em> har ikke stadieveksling. Stedsnavn ender aldri på <em>-iija</em> (<em>Tansania</em>).</p>
         </div>
       </div>
     </details>
@@ -319,11 +355,63 @@
 
     let timerInterval = null;
     let startTime = 0;
-    let activeTextarea = targetEl;
+    let currentSourceLang = 'nor';
 
-    // Husk aktivt tekstfelt for innsetting av spesialtegn
-    sourceEl.addEventListener('focus', () => { activeTextarea = sourceEl; });
-    targetEl.addEventListener('focus', () => { activeTextarea = targetEl; });
+    function setSourceLang(lang) {
+      currentSourceLang = lang;
+      const langs = ['nor', 'swe', 'fin', 'eng', 'sme'];
+      langs.forEach(l => {
+        const btn = document.getElementById('btnLang' + l.charAt(0).toUpperCase() + l.slice(1));
+        if (!btn) return;
+        if (l === lang) {
+          btn.className = "px-2.5 py-1 rounded-md text-slate-900 bg-white shadow-sm font-semibold transition";
+        } else {
+          btn.className = "px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition";
+        }
+      });
+
+      const translateBtn = document.getElementById('translateBtn');
+      const targetHeaderLabel = document.getElementById('targetHeaderLabel');
+      const tabBtnTartuLabel = document.getElementById('tabBtnTartuLabel');
+      const stepPill1 = document.getElementById('stepPill1');
+
+      if (lang === 'sme') {
+        sourceEl.placeholder = "Čále dahje liibme davvisámegiel teavstta dása (språkvask & korrektur)...";
+        targetEl.placeholder = "Den språkvaskede og feilrettede nordsamiske teksten vises her...";
+        translateBtn.innerHTML = `<span>Språkvask &amp; korriger</span>`;
+        if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella (Vasket)";
+        if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Opprinnelig tekst";
+        if (stepPill1) stepPill1.textContent = "1. Klargjøring";
+      } else if (lang === 'swe') {
+        sourceEl.placeholder = "Skriv eller klistra in svensk text här...";
+        targetEl.placeholder = "Den ferdig vaskede og korrekturleste nordsamiske teksten vises her...";
+        translateBtn.innerHTML = `<span>Oversett &amp; korrekturles</span>`;
+        if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella";
+        if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Råutkast (TartuNLP swe→sme)";
+        if (stepPill1) stepPill1.textContent = "1. TartuNLP (swe)";
+      } else if (lang === 'fin') {
+        sourceEl.placeholder = "Kirjoita tai liitä suomenkielinen teksti tähän...";
+        targetEl.placeholder = "Den ferdig vaskede og korrekturleste nordsamiske teksten vises her...";
+        translateBtn.innerHTML = `<span>Oversett &amp; korrekturles</span>`;
+        if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella";
+        if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Råutkast (TartuNLP fin→sme)";
+        if (stepPill1) stepPill1.textContent = "1. TartuNLP (fin)";
+      } else if (lang === 'eng') {
+        sourceEl.placeholder = "Type or paste English text here...";
+        targetEl.placeholder = "Den ferdig vaskede og korrekturleste nordsamiske teksten vises her...";
+        translateBtn.innerHTML = `<span>Oversett &amp; korrekturles</span>`;
+        if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella";
+        if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Råutkast (TartuNLP eng→sme)";
+        if (stepPill1) stepPill1.textContent = "1. TartuNLP (eng)";
+      } else {
+        sourceEl.placeholder = "Skriv eller lim inn norsk tekst her...";
+        targetEl.placeholder = "Den ferdig vaskede og korrekturleste nordsamiske teksten vises her...";
+        translateBtn.innerHTML = `<span>Oversett &amp; korrekturles</span>`;
+        if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella";
+        if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Råutkast (TartuNLP nor→sme)";
+        if (stepPill1) stepPill1.textContent = "1. TartuNLP (nor)";
+      }
+    }
 
     // Hent lagret API-nøkkel
     if (localStorage.getItem('sami_gemini_key')) {
@@ -374,19 +462,18 @@
       sourceEl.focus();
     }
 
-    function insertChar(ch) {
-      const el = activeTextarea || targetEl;
-      const start = el.selectionStart;
-      const end = el.selectionEnd;
-      const val = el.value;
-      el.value = val.slice(0, start) + ch + val.slice(end);
-      el.focus();
-      el.selectionStart = el.selectionEnd = start + ch.length;
-      updateCounts();
-    }
-
     function loadExample() {
-      sourceEl.value = "Statsforvalteren har gitt fellingstillatelse på bjørn. Saken ble behandlet av kommunestyret i går, men jeg vet ikke om fem personer kommer i morgen eller på fredag.";
+      if (currentSourceLang === 'sme') {
+        sourceEl.value = "Ášši meannuduvvui suohkanstivrras ikte, muhto in dieđe jos 5 olbmot bohtet ihttin dahje bearjadaga. Mii eat sáhte váldit badjelasamet lasi barggu 25%.";
+      } else if (currentSourceLang === 'swe') {
+        sourceEl.value = "Länsstyrelsen har gett tillstånd för björnjakt. Ärendet behandlades av kommunfullmäktige i går, men jag vet inte om fem personer kommer i morgon eller på fredag.";
+      } else if (currentSourceLang === 'fin') {
+        sourceEl.value = "Aluehallintovirasto on myöntänyt karhun kaatoluvan. Kunnanvaltuusto käsitteli asiaa eilen, mutta en tiedä, tuleeko viisi henkilöä huomenna vai perjantaina.";
+      } else if (currentSourceLang === 'eng') {
+        sourceEl.value = "The County Governor has granted a license to cull a bear. The municipal council discussed the matter yesterday, but I do not know if five people will arrive tomorrow or on Friday.";
+      } else {
+        sourceEl.value = "Statsforvalteren har gitt fellingstillatelse på bjørn. Saken ble behandlet av kommunestyret i går, men jeg vet ikke om fem personer kommer i morgen eller på fredag.";
+      }
       updateCounts();
     }
 
@@ -558,11 +645,13 @@
       document.getElementById('pipelineDetails').classList.remove('hidden');
 
       badgeEl.classList.remove('hidden', 'bg-emerald-100', 'text-emerald-800', 'bg-amber-100', 'text-amber-800');
+      const isSami = (data.source_lang === 'sme');
+
       if (data.llm_active) {
-        badgeEl.textContent = `Gemini (${data.used_model}) + Divvun`;
+        badgeEl.textContent = isSami ? `Vasket: Gemini (${data.used_model}) + Divvun` : `Gemini (${data.used_model}) + Divvun`;
         badgeEl.classList.add('bg-emerald-100', 'text-emerald-800');
       } else {
-        badgeEl.textContent = `Tartu + Divvun`;
+        badgeEl.textContent = isSami ? `Kun Divvun-retting` : `Tartu + Divvun`;
         badgeEl.classList.add('bg-amber-100', 'text-amber-800');
       }
 
@@ -579,7 +668,7 @@
       renderTips(data.step3_improvements, data.language_tips);
 
       statusText.textContent = data.llm_active
-        ? `Fullført med ${data.used_model}`
+        ? (isSami ? `Språkvasket med ${data.used_model}` : `Fullført med ${data.used_model}`)
         : `Fullført (uten Gemini)`;
 
       // Vis automatisk fanen med forbedringer hvis det finnes noen
@@ -592,7 +681,8 @@
 
       const btn = document.getElementById('translateBtn');
       btn.disabled = true;
-      btn.innerHTML = `<span>Oversetter...</span>`;
+      const isSami = (currentSourceLang === 'sme');
+      btn.innerHTML = isSami ? `<span>Språkvasker...</span>` : `<span>Oversetter...</span>`;
 
       startTime = Date.now();
       const timerEl = document.getElementById('progressTimer');
@@ -602,7 +692,8 @@
         timerEl.textContent = `${elapsed}s`;
       }, 100);
 
-      updateProgressUI(1, 5, "Starter oversettelse...", "Sender tekst til server...", false);
+      const startMsg = isSami ? "Starter språkvask og korrektur..." : "Starter oversettelse...";
+      updateProgressUI(1, 5, startMsg, "Sender tekst til server...", false);
 
       try {
         const resp = await fetch('/api/translate-stream', {
@@ -610,6 +701,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             text,
+            source_lang: currentSourceLang,
             use_llm: document.getElementById('useLlm').checked,
             auto_apply_divvun: document.getElementById('autoApplyDivvun').checked,
             api_key: keyInput.value.trim() || null,
@@ -651,7 +743,9 @@
       } finally {
         if (timerInterval) clearInterval(timerInterval);
         btn.disabled = false;
-        btn.innerHTML = `<span>Oversett &amp; korrekturles</span>`;
+        btn.innerHTML = (currentSourceLang === 'sme')
+          ? `<span>Språkvask &amp; korriger</span>`
+          : `<span>Oversett &amp; korrekturles</span>`;
       }
     }
 

@@ -19,36 +19,100 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
 
 SAMI_GUIDELINES_PROMPT = """
 Du er en ekspertoversetter og språkvasker fra norsk til nordsamisk (davvisámegiella), 
-opplært etter NRK Sámi Giellagiehtagirji og UiT Giellatekno/Oahpa-grammatikken.
+opplært etter:
+- Sámediggi & Sámi Giellagáldu: Riektačállinrávvagat (reviderejuvvon 2019)
+- NRK Sámi Giellagiehtagirji
+- UiT Giellatekno og Oahpa-grammatikken
 
-Når du reviderer og oversetter teksten, MÅ du følge disse reglene:
-1. FULLSTENDIGHET: Du MÅ oversette ALLE avsnitt, sitater og overskrifter i den norske kildeteksten. Ikke hopp over et eneste avsnitt!
-2. VEARBAGIELLA (Verbspråk): Unngå norsk substantivsyke! Gjør tunge norske substantivuttrykk om til samiske verb og verbavledninger (-goahtit, -stit, -lit, -hit, -ut, -nit, -odit, -muvvat). Eks: "Statsforvalteren har gitt fellingstillatelse på bjørn" -> "Stáhtahálddašeaddji lea addán lobi báhčit guovžža" eller "lea suovvan báhčit guovžža".
-3. AKTIIVA GIELLA (Aktivt språk): Hvis en passiv setning med -(oj)uvvot nevner hvem som utfører handlingen (subjekt/agent), MÅ setningen skrives om til aktiv. ("Ášši meannuduvvui suohkanstivrras" -> "Suohkanstivra meannudii ášši"). Passiv med -hallat brukes kun når noe er uheldig for den som rammes, med agenten i illativ ("Áhkku vuojáhalai boastabiilii").
-4. SU vs. IEŽAS: Bruk refleksivt pronomen (iežan, iežat, iežas, iežame, iežade, iežaska, iežamet, iežadet, iežaset) når eieren er setningens subjekt ("Son borrá iežas njálgáid"). Bruk su/sudno/sin KUN når det viser til noen andre enn subjektet ("Son borrá su njálgáid"). Habitiv følger samme regel ("Mus lea alddán dállu", "Sudnos lea alddiska biila").
-5. LOHKU + SUBSTANTIIVA: Etter tallord over 1 (2, 3... samt moadde, máŋga, galle) skal substantivet stå i ENTALL GENITIV (f.eks. "guokte olbmo", "vihtta viesu"), mens verbet står i flertall ("Guokte olbmo bohte"). Tall fra 1 til 10 skrives med bokstaver i løpende tekst. I andre kasus enn nominativ/akkusativ/genitiv: Merk at i entall lokativ og illativ står tallordet/pronomenet i genitiv mens substantivet står i lokativ/illativ ("dan guovtti mánnái", "golmma mánás").
-6. -GO vs. JOS: Bruk ALDRI "jos" i indirekte spørresetninger som uttrykker usikkerhet ("Jeg vet ikke om han kommer"). Bruk partikkelen -go ("In dieđe boahtágo son odne"). "Jos" brukes kun i betingelsessetninger (jos ... de).
-7. DAHJE vs. VAI: Bruk "vai" i spørresetninger ("Boađátgo ihttin vai bearjadaga?") og "dahje" i fortellende setninger.
-8. EKTUI vs. HÁRRÁI/DÁFUS/ILLATIV: Unngå overbruk av "ektui" (som kun skal brukes ved ren sammenligning, f.eks. "Áhčis ektui son lea stuoris"). Bruk "hárrái", "dáfus" eller ren illativ ("Maid don dajat dien áššái?").
-9. GIELLASEAGUHEAPMI & NORSK PÅVIRKNING:
-   - Fjern norsk binde-s i sammensetninger (eksámenbohtosat, ikke eksamensbohtosat).
-   - Bruk aldri "enngo" ved komparativ, kun "go" ("buoret go dát").
-   - Fjern norske partikkeladverb som "olggos" i "gávnnahii olggos" -> "gávnnahii", eller "olggosoaidnit" -> "oaidnit".
-   - Sett genitivattributt foran substantivet: "Gáivuona vuođđoskuvlla rektor", ikke "rektor Gáivuona vuođđoskuvllas".
-10. REKŠUVDNAVEARBBAT: Sjekk at verbene styrer riktig kasus:
-   - Illativ: liikot, luohttit, álgit, guoskat, heivet, suhttat, darvánit.
-   - Lokativ: beroštit, ballat, heaitit, dolkat, váruhit, nohkkot.
-   - Komitativ: humadit/háleštit, hilbošit.
-11. ADJEKTIIVA ATTRIBUHTTAN & MÅL:
-    - Adjektiv foran substantiv skal stå i attributtform (f.eks. "fiskes viessu", "rukses biila"). Unntak: "buorre" bøyes i kasus/tall ("buori biilla", "buori biilii"). Predikativ bøyes i tall med subjektet ("Viessu lea fiskat", "Viesut leat fiskadat").
-    - Ved nøyaktige mål brukes -u-form (guhku, alu, viiddu, losu, stuoru) eller -saš ("logi mehtera alu", ikke "allat").
-12. RIEKTAČÁLLIN (Rettskriving):
-    - Kolon ved kasusbøyning av forkortelser og tall ("NRK:i", "2026:s").
-    - Dato: Måned i genitiv + ordenstall + beaivi/beaivvi ("geassemánu 7. beaivvi 2026").
+Når du reviderer og oversetter teksten, MÅ du følge disse reglene og rettskrivingsnormene nøye:
+
+1. FULLSTENDIGHET:
+   Du MÅ oversette ALLE avsnitt, sitater og overskrifter i den norske kildeteksten. Ikke hopp over et eneste avsnitt eller en setning!
+
+2. VEARBAGIELLA (Verbspråk mot substantivsyke):
+   Unngå norsk substantivsyke! Gjør tunge norske substantivuttrykk om til samiske verb og verbavledninger (-goahtit, -stit, -lit, -hit, -ut, -nit, -odit, -muvvat).
+   Eks: "Statsforvalteren har gitt fellingstillatelse på bjørn" -> "Stáhtahálddašeaddji lea addán lobi báhčit guovžža" eller "lea suovvan báhčit guovžža".
+
+3. AKTIIVA GIELLA (Aktivt språk):
+   Hvis en passiv setning med -(oj)uvvot nevner hvem som utfører handlingen (subjekt/agent), MÅ setningen skrives om til aktiv ("Ášši meannuduvvui suohkanstivrras" -> "Suohkanstivra meannudii ášši").
+   Passiv med -hallat brukes kun når noe er uheldig for den som rammes, med agenten i illativ ("Áhkku vuojáhalai boastabiilii").
+
+4. SU vs. IEŽAS (Refleksivt pronomen):
+   Bruk refleksivt pronomen (iežan, iežat, iežas, iežame, iežade, iežaska, iežamet, iežadet, iežaset) når eieren er setningens subjekt ("Son borrá iežas njálgáid").
+   Bruk su/sudno/sin KUN når det viser til noen andre enn subjektet ("Son borrá su njálgáid"). Habitiv følger samme regel ("Mus lea alddán dállu", "Sudnos lea alddiska biila").
+
+5. LOHKU + SUBSTANTIIVA & LOGUID SOJAHEAPMI (Tallord og tallbøying):
+   - Etter tallord over 1 (2, 3... samt moadde, máŋga, galle) skal substantivet stå i ENTALL GENITIV (f.eks. "guokte olbmo", "vihtta viesu"), mens verbet står i flertall ("Guokte olbmo bohte").
+   - I andre kasus: Merk at i entall lokativ og illativ står tallordet i genitiv mens substantivet står i lokativ/illativ ("dan guovtti mánnái", "golmma mánás").
+   - Tall fra 1 til 10 skrives med bokstaver i løpende tekst ("ovtta", "guokte", "golbma"...).
+   - Tall under 1 million skrives i ETT ord med bokstaver ("čiežalogigolbma", "guoktečuođi", "vihttaduhát"), over 1 mill. i to ord ("logi miljovnna").
+   - Bøying av tall med kolon (uten mellomrom): "16:i" (illativ), "16:s" (lokativ), "16:in" (komitativ), "16:t" (nominativ flertall).
+   - Ordenstall bøyes med -da/-dii/-dis: "16." (nominativ), "16:da" (gen/akk), "16:dii" (illativ), "16:dis" (lokativ).
+   - Prosent og måleenheter: Alltid mellomrom foran prosenttegn og forkortelser ("25 %", "10 kg", "50 km"). I løpende tekst skrives "proseantamearri" (aldri "%-mearri").
+
+6. GOALLOSSÁNIT & SÁTNEGIHPUT (Sammensatte ord ifølge Riektačállinrávvagat 2019):
+   - Skrives i ett ord når forleddet er nominativ entall ("gilvoviehkan", "lávllagirji", "bohccobiergu").
+   - Bindestrek brukes når et ledd er navn, tall, bokstav, forkortelse eller fremmedord ("Elle-oambealli", "1950-lohku", "25-jahkásaš", "C-vitamiidna", "e-boasta", "ON-beaivi").
+   - MELLOMROM FORAN BINDESTREK ved flerords forledd (syntagme): "Min Áigi -aviisa", "New Yorka -mátki", "Boeing 737 -girdi", "Paulus Utsi -áššedovdi". (Men "Ánne-Máret-muoŧŧá").
+   - Felles ledd: "mánáid- ja nuoraidskuvla", "sáme-, suoma- ja ruoŧagiella".
+   - Retnings- og stedsord: "duogábealde", "vuolábeallai" (ett ord ved sammensetningsform), men "Eanodaga bealde", "dán beallai", "Ruošša beale" (to ord ved genitiv).
+
+7. GASKAMEARKKAT & TEGNSETTING (Riektačállinrávvagat 2019):
+   - Komma (Rihkku):
+     * Alltid komma etter leddsetning (oalgecealkka) når den står først ("Go áhčči boahtá, de mii herskkostallat", "Jos mii eat livčče vuolgán, de...").
+     * Komma foran "muhto" ("Son livččii viššal, muhto sus ii leat dilli").
+     * Komma ved apposisjoner og presiseringer ("Iŋgá, ovddit jagiid vuoiti, bođii...").
+     * ALDRI komma mellom setningsledd med felles subjekt eller verbal ("Elle finai vuos buvddas ja de manai ruoktot").
+     * ALDRI komma i helt korte leddsetninger ("Dat vulggii go mun bohten").
+   - Sitattegn (Aisttonmearkkat): Bruk alltid typografiske nordsamiske/nordiske sitattegn ”...” (ikke engelske “...”). Sitat i sitat bruker apostrof ’...’.
+   - Tankestrek (Jurddasáhcu –): Bruk tankestrek uten mellomrom ved avstand, tidsintervall og sidetall ("1995–1997", "Romsa–Ivgubahta 120 km", "siidduin 25–100").
+   - Skråstrek (/): Betyr "dahje" (eller), ALDRI "ja" ("mánát/nuorat" = mánát dahje nuorat).
+
+8. STUORA JA UNNA ÁLGORBUSTÁVAT (Store og små forbokstaver):
+   - Liten forbokstav (unna álgobustávva):
+     * Stillinger og titler: "direktevra Hætta", "stáhtaministtar", "presideanta", "advokáhtta", "gonagas Harald", "sátnejođiheaddji".
+     * Nasjonaliteter, folkeslag, språk: "sápmelaččat", "davvisámegiella", "norgalaš", "suopmelaš".
+     * Ukedager, måneder, høytider: "bearjadat", "guovvamánnu", "beassážat".
+     * Historiske hendelser og epoker: "eváhkkodálvi", "nubbi máilmmisoahti", "ruovdeáigi".
+     * Etter kolon når det ikke følger en fullstendig selvstendig setning ("njeallje ivnni: alit, ruoksat, fiskat ja ruoná").
+   - Stor forbokstav (stuora álgobustávva):
+     * Egennavn på personer, institusjoner, kommuner og organisasjoner ("Sámediggi", "Sámi allaskuvla", "Kárášjoga gielda", "Ráđđehus").
+     * Etter kolon ved fullstendig direkte tale eller replikk ("Oahpaheaddji álggahii: ”Dál dii lehpet álgán nuoraidskuvlii!”").
+
+9. VIERISSÁNIT & EARÁ GIELAID NAMAID SOJAHEAPMI (Fremmedord og navn):
+   - Utenlandske personnavn skrives slik bæreren skriver dem, og bøyes med samiske endelser:
+     * Navn på -a/-i beholder vokalen: "Klara : Klaras : Klarai", "Sari : Saris : Sarii".
+     * Énstavelsesnavn bøyes med -a-: "Per : Pera : Perii/Perai : Peras", "Liv : Liva : Livii : Livas".
+     * Navn på konsonant: "Astrid : Astrida : Astridii", "Øivind : Øivinda : Øivindii".
+   - Fremmedord på -iija ("filosofiija", "biologiija", "energiija") har INGEN stadieveksling ("filosofiijas", "energiijain").
+   - Stedsnavn ender ALDRI på -iija ("Tansania", "Italia", ikke Tansaniija).
+   - Unngå norsk binde-s i sammensetninger ("eksámenbargu", ikke eksamensbargu).
+
+10. LAKTAPARTIHKKALAT (Enklitiske partikler):
+    - Faste leksemer MÅ skrives i ett ord: "dieđusge", "dattetge", "iešguhtege", "oktage", "veaháge", "veahášge", "makkárge", "mannege", "matge", "miige", "mihkkege", "movtge", "goitge", "almmatge", "juogo", "jusgo".
+    - Spørrepartikkelen -go henger fast på verbet ("Boahtágo son odne?").
+    - Konjunksjonen "go" (når, da, som, enn) skrives ALLTID frittstående ("Ánte lea boarráseabbo go Risten").
+    - Bruk ALDRI "jos" i indirekte spørsmål ("In dieđe boahtágo son odne", ikke "jos").
+
+11. SPØRREORD & KONJUNKSJONER (Dahje vs. Vai):
+    - Bruk "vai" i spørresetninger ("Boađátgo ihttin vai bearjadaga?").
+    - Bruk "dahje" i fortellende setninger.
+
+12. EKTUI vs. HÁRRÁI / DÁFUS / ILLATIV:
+    - "Ektui" brukes kun ved reell sammenligning ("Áhčis ektui son lea stuoris"). Bruk "hárrái", "dáfus" eller ren illativ ("Maid don dajat dien áššái?").
+
+13. REKŠUVDNAVEARBBAT (Kasusstyring):
+    - Illativ: liikot, luohttit, álgit, guoskat, heivet, suhttat, darvánit.
+    - Lokativ: beroštit, ballat, heaitit, dolkat, váruhit, nohkkot.
+    - Komitativ: humadit, háleštit.
+
+14. RIEKTAČÁLLIN & DATO:
+    - Dato skrives med måned i genitiv + ordenstall + beaivvi ("geassemánu 7. beaivvi 2026" eller "geassemánu 7. b. 2026").
 """
 
 class TranslateRequest(BaseModel):
     text: str
+    source_lang: str = "nor"  # "nor", "eng", eller "sme"
     use_llm: bool = True
     auto_apply_divvun: bool = True
     api_key: Optional[str] = None
@@ -147,10 +211,18 @@ async def call_tartu_mt(text: str, src: str = "nor", tgt: str = "sme") -> str:
     """Trinn 1: Kaller TartuNLP (translate.ut.ee) avsnitt for avsnitt så lange tekster bevarer struktur."""
     paragraphs = text.split("\n")
     translated_paragraphs = []
+    if src in ["swe", "sv"]:
+        src_candidates = ["swe", "sv"]
+    elif src in ["fin", "fi"]:
+        src_candidates = ["fin", "fi"]
+    elif src in ["eng", "en"]:
+        src_candidates = ["eng", "en"]
+    else:
+        src_candidates = [src, "nob", "no"]
     async with httpx.AsyncClient(timeout=45.0) as client:
         # Prøv først hele teksten i ett kall hvis den ikke er for lang
         if len(text) < 4500:
-            for src_code in [src, "nob", "no"]:
+            for src_code in src_candidates:
                 try:
                     resp = await client.post(
                         TARTU_API_URL,
@@ -168,7 +240,7 @@ async def call_tartu_mt(text: str, src: str = "nor", tgt: str = "sme") -> str:
                 translated_paragraphs.append("")
                 continue
             done = False
-            for src_code in [src, "nob", "no"]:
+            for src_code in src_candidates:
                 try:
                     resp = await client.post(
                         TARTU_API_URL,
@@ -228,7 +300,8 @@ async def call_gemini_final_divvun_pass(
     gemini_draft: str,
     divvun_errs: list,
     override_key: Optional[str] = None,
-    override_model: Optional[str] = None
+    override_model: Optional[str] = None,
+    source_lang: str = "nor"
 ) -> Optional[str]:
     """Hvis Divvun finner merknader i Geminis tekst, ber vi Gemini rette akkurat disse Divvun-merknadene."""
     active_key = (override_key or GEMINI_API_KEY).strip()
@@ -245,9 +318,17 @@ async def call_gemini_final_divvun_pass(
         for e in divvun_errs
     ]
 
-    prompt = f"""Her er den nordsamiske oversettelsen du nettopp laget, sammen med merknader fra UiT Divvun grammatikk- og stavekontroll.
+    source_heading_map = {
+        "sme": "NORDSAMISK KILDE",
+        "eng": "ENGELSK KILDE",
+        "swe": "SVENSK KILDE",
+        "fin": "FINSK KILDE",
+        "nor": "NORSK KILDE"
+    }
+    source_heading = source_heading_map.get(source_lang, "NORSK KILDE")
+    prompt = f"""Her er den nordsamiske teksten du bearbeider, sammen med merknader fra UiT Divvun grammatikk- og stavekontroll.
 
-NORSK KILDE:
+{source_heading}:
 {norwegian_text}
 
 DIN NORDSAMISKE TEKST:
@@ -308,26 +389,26 @@ def apply_divvun_suggestions(text: str, errs: list) -> str:
     return corrected
 
 def local_heuristic_checks(norwegian_text: str, sami_text: str) -> List[dict]:
-    """Lokal regelsjekker basert på NRK Sámi Giellagiehtagirji."""
+    """Lokal regelsjekker basert på Sámi Giellagáldu Riektačállinrávvagat (2019) og NRK Sámi Giellagiehtagirji."""
     tips = []
     
     if re.search(r"\b(in|it|ii|ean|eahppi|eaba|eat|ehpet|eai)\s+dieđe\s+jos\b", sami_text, re.IGNORECASE):
         tips.append({
             "rule": "Partihkkal -go vs. konjunkšuvdna jos",
             "message": "Unngå 'jos' etter 'in dieđe' i indirekte spørsmål. Bruk spørrepartikkelen '-go' på verbet (f.eks. 'In dieđe boahtágo son odne').",
-            "reference": "Giellagiehtagirji s. 18"
+            "reference": "Giellagiehtagirji s. 18 / Riektačállinrávvagat s. 70"
         })
     if re.search(r"\benngo\b", sami_text, re.IGNORECASE):
         tips.append({
             "rule": "Konjunkšuvdna go",
             "message": "Unngå blandingsordet 'enngo'. Bruk kun 'go' ved sammenligning (f.eks. 'buoret go dát').",
-            "reference": "Giellagiehtagirji s. 19"
+            "reference": "Giellagiehtagirji s. 19 / Riektačállinrávvagat s. 70"
         })
     if "?" in sami_text and re.search(r"\bdahje\b", sami_text, re.IGNORECASE):
         tips.append({
             "rule": "Dahje vs. Vai",
             "message": "I spørresetninger skal man bruke 'vai' i stedet for 'dahje' (f.eks. 'Boađátgo ihttin vai bearjadaga?').",
-            "reference": "Giellagiehtagirji s. 22"
+            "reference": "Giellagiehtagirji s. 22 / Riektačállinrávvagat s. 32"
         })
     if re.search(r"\bektui\b", sami_text, re.IGNORECASE):
         tips.append({
@@ -353,6 +434,37 @@ def local_heuristic_checks(norwegian_text: str, sami_text: str) -> List[dict]:
             "message": "Teksten inneholder et passivt verb på -(oj)uvvot. Sjekk om den som utfører handlingen er nevnt – i så fall bør setningen snus til aktiv!",
             "reference": "Giellagiehtagirji s. 15 / Ordavledning s. 2"
         })
+    # Sjekkpunkter fra Sámi Giellagáldu Riektačállinrávvagat (2019)
+    if re.search(r"\b(dieđus|dattet|iešguhte|okta|veahá|veaháš|makkár|manne|masa|mihkke|movt|goit)\s+ge\b", sami_text, re.IGNORECASE):
+        tips.append({
+            "rule": "Laktapartihkkalat (sammenskriving)",
+            "message": "Faste partikkelord skal skrives i ett ord: 'dieđusge', 'dattetge', 'iešguhtege', 'oktage', 'veaháge', 'mihkkege', 'goitge'.",
+            "reference": "Riektačállinrávvagat s. 71"
+        })
+    if re.search(r"\b\d+%", sami_text):
+        tips.append({
+            "rule": "Proseantamearka (gaska)",
+            "message": "Det skal være et mellomrom mellom tallet og prosenttegnet (f.eks. '25 %', ikke '25%'). I løpende tekst skrives 'proseantamearri' (ikke '%-mearri').",
+            "reference": "Riektačállinrávvagat s. 41"
+        })
+    if re.search(r"\b%-(mearri|mearre)\b", sami_text, re.IGNORECASE):
+        tips.append({
+            "rule": "Proseantamearri vs. %-mearri",
+            "message": "Skriv 'proseantamearri' med bokstaver, ikke '%-mearri'.",
+            "reference": "Riektačállinrávvagat s. 41"
+        })
+    if re.search(r"\b[A-ZÁČĐŊŠŦŽ][a-záčđŋšŧž]+iija\b", sami_text):
+        tips.append({
+            "rule": "Báikenamat eai lohpa -iija",
+            "message": "Stedsnavn ender aldri på '-iija' på samisk. Skriv f.eks. 'Tansania', 'Italia', 'Spania' (ikke Tansaniija).",
+            "reference": "Riektačállinrávvagat s. 43"
+        })
+    if re.search(r"[“”]", sami_text):
+        tips.append({
+            "rule": "Aisttonmearkkat (Sitattegn)",
+            "message": "På samisk brukes typografiske sitattegn ”...” (som i norsk), ikke engelske “...”.",
+            "reference": "Riektačállinrávvagat s. 24"
+        })
     return tips
 
 async def call_gemini_refiner(
@@ -362,9 +474,10 @@ async def call_gemini_refiner(
     divvun_errs: list,
     local_tips: list,
     override_key: Optional[str] = None,
-    override_model: Optional[str] = None
+    override_model: Optional[str] = None,
+    source_lang: str = "nor"
 ) -> dict:
-    """Trinn 3: Foredler oversettelsen ved hjelp av Google Gemini API med responseSchema og 180s timeout for lange tekster."""
+    """Trinn 3: Foredler oversettelsen eller språkvasker nordsamisk tekst ved hjelp av Google Gemini API."""
     active_key = (override_key or GEMINI_API_KEY).strip()
     requested_model = (override_model or GEMINI_MODEL).strip() or "gemini-3.1-pro-preview"
 
@@ -372,7 +485,7 @@ async def call_gemini_refiner(
         return {
             "final_translation": divvun_corrected or tartu_draft,
             "improvements": [
-                "GEMINI_API_KEY er ikke lagt inn ennå (legg den i .env eller i toppmenyen i grensesnittet). Viser TartuNLP-oversettelse korrigert av Divvun API."
+                "GEMINI_API_KEY er ikke lagt inn ennå (legg den i .env eller i innstillingene i grensesnittet). Viser tekst korrigert av Divvun API."
             ],
             "llm_active": False,
             "used_model": None
@@ -388,7 +501,94 @@ async def call_gemini_refiner(
         for e in divvun_errs[:40]
     ]
 
-    user_prompt = f"""
+    if source_lang == "sme":
+        user_prompt = f"""
+NORDSAMISK KILDETEKST SOM SKAL SPRÅKVASKES OG KORRIGERES:
+{norwegian_text}
+
+UTKAST ETTER FØRSTE DIVVUN-KORREKTUR:
+{divvun_corrected}
+
+DIVVUN FEILRAPPORT (utvalg):
+{json.dumps(compact_errs, ensure_ascii=False)}
+
+AUTOMATISKE SPRÅKVARSLER (Giellagiehtagirji & Riektačállinrávvagat):
+{json.dumps(local_tips, ensure_ascii=False)}
+
+Oppgave:
+1. Gjennomfør en grundig språkvask og korrektur av den nordsamiske kildeteksten. Rett alle skrivefeil, bøyingsfeil, tegnsettingsfeil og grammatiske svakheter i henhold til normene fra Sámi Giellagáldu (Riektačállinrávvagat 2019), NRK Sámi Giellagiehtagirji og UiT Giellatekno/Oahpa.
+2. Forbedre setningsoppbyggingen: snu passiv til aktiv der agenten er nevnt, motvirk substantivsyke med naturlige verbavledninger, og kontroller korrekt bruk av iežas vs. su, partikkelen -go, tallord og sammensetninger.
+3. Bevar tekstenes opprinnelige mening, stil og innhold fullstendig – ikke utelat avsnitt og ikke legg til nytt faktuelt innhold.
+4. Returner svaret som gyldig JSON med nøklene "final_translation" (den ferdig vaskede teksten) og "improvements" (korte punkter på norsk som forklarer de viktigste språklige forbedringene).
+"""
+    elif source_lang == "swe":
+        user_prompt = f"""
+SVENSK KILDE (ALLE avsnitt og sitater skal oversettes til nordsamisk):
+{norwegian_text}
+
+RÅOVERSETTELSE FRA TARTUNLP (Svensk -> Nordsamisk):
+{tartu_draft}
+
+ETTER DIVVUN KORREKTUR:
+{divvun_corrected}
+
+DIVVUN FEILRAPPORT (utvalg):
+{json.dumps(compact_errs, ensure_ascii=False)}
+
+AUTOMATISKE SPRÅKVARSLER:
+{json.dumps(local_tips, ensure_ascii=False)}
+
+Oppgave:
+1. Lag en optimal, naturlig og idiomatisk nordsamisk oversettelse av HELE den svenske kildeteksten (pass nøye på at absolutt alle avsnitt og sitater blir med!).
+2. Bruk TartuNLP- og Divvun-utkastet som hjelp, men skriv om der det er nødvendig for å unngå ord-for-ord-oversettelse, passiv-syke eller substantivsyke. Følg normene fra Sámi Giellagáldu (Riektačállinrávvagat 2019) og NRK Sámi Giellagiehtagirji.
+3. Returner svaret som gyldig JSON med nøklene "final_translation" og "improvements".
+"""
+    elif source_lang == "fin":
+        user_prompt = f"""
+FINSK KILDE (ALLE avsnitt og sitater skal oversettes til nordsamisk):
+{norwegian_text}
+
+RÅOVERSETTELSE FRA TARTUNLP (Finsk -> Nordsamisk):
+{tartu_draft}
+
+ETTER DIVVUN KORREKTUR:
+{divvun_corrected}
+
+DIVVUN FEILRAPPORT (utvalg):
+{json.dumps(compact_errs, ensure_ascii=False)}
+
+AUTOMATISKE SPRÅKVARSLER:
+{json.dumps(local_tips, ensure_ascii=False)}
+
+Oppgave:
+1. Lag en optimal, naturlig og idiomatisk nordsamisk oversettelse av HELE den finske kildeteksten (pass nøye på at absolutt alle avsnitt og sitater blir med!).
+2. Bruk TartuNLP- og Divvun-utkastet som hjelp, men skriv om der det er nødvendig for å unngå ord-for-ord-oversettelse, passiv-syke eller substantivsyke. Følg normene fra Sámi Giellagáldu (Riektačállinrávvagat 2019) og NRK Sámi Giellagiehtagirji.
+3. Returner svaret som gyldig JSON med nøklene "final_translation" og "improvements".
+"""
+    elif source_lang == "eng":
+        user_prompt = f"""
+ENGELSK KILDE (ALLE avsnitt og sitater skal oversettes til nordsamisk):
+{norwegian_text}
+
+RÅOVERSETTELSE FRA TARTUNLP (Engelsk -> Nordsamisk):
+{tartu_draft}
+
+ETTER DIVVUN KORREKTUR:
+{divvun_corrected}
+
+DIVVUN FEILRAPPORT (utvalg):
+{json.dumps(compact_errs, ensure_ascii=False)}
+
+AUTOMATISKE SPRÅKVARSLER:
+{json.dumps(local_tips, ensure_ascii=False)}
+
+Oppgave:
+1. Lag en optimal, naturlig og idiomatisk nordsamisk oversettelse av HELE den engelske kildeteksten (pass nøye på at absolutt alle avsnitt og sitater blir med!).
+2. Bruk TartuNLP- og Divvun-utkastet som hjelp, men skriv om der det er nødvendig for å unngå ord-for-ord-oversettelse, passiv-syke eller substantivsyke. Følg normene fra Sámi Giellagáldu (Riektačállinrávvagat 2019) og NRK Sámi Giellagiehtagirji.
+3. Returner svaret som gyldig JSON med nøklene "final_translation" og "improvements".
+"""
+    else:
+        user_prompt = f"""
 NORSK KILDE (ALLE avsnitt og sitater skal med i oversettelsen):
 {norwegian_text}
 
@@ -406,7 +606,7 @@ AUTOMATISKE SPRÅKVARSLER:
 
 Oppgave:
 1. Lag en optimal, naturlig og idiomatisk nordsamisk oversettelse av HELE den norske kildeteksten (pass nøye på at absolutt alle avsnitt og sitater blir med!).
-2. Bruk TartuNLP- og Divvun-utkastet som hjelp, men skriv om der det er nødvendig for å unngå ord-for-ord-oversettelse, passiv-syke eller substantivsyke.
+2. Bruk TartuNLP- og Divvun-utkastet som hjelp, men skriv om der det er nødvendig for å unngå ord-for-ord-oversettelse, passiv-syke eller substantivsyke. Følg normene fra Sámi Giellagáldu (Riektačállinrávvagat 2019) og NRK Sámi Giellagiehtagirji.
 3. Returner svaret som gyldig JSON med nøklene "final_translation" og "improvements".
 """
 
@@ -542,18 +742,24 @@ async def translate_pipeline(req: TranslateRequest):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Teksten er tom.")
 
-    # Trinn 1: TartuNLP råoversettelse
-    tartu_raw = await call_tartu_mt(req.text)
-    if not tartu_raw:
-        tartu_raw = "[TartuNLP svarte ikke – bruker Gemini og Divvun direkte]"
+    src_lang = req.source_lang.lower().strip() if req.source_lang else "nor"
+    is_sami_source = (src_lang == "sme")
 
-    # Trinn 2: Divvun grammatikk- og korrekturkontroll på råoversettelsen
+    # Trinn 1: TartuNLP råoversettelse (hoppes over hvis kildeteksten allerede er nordsamisk)
+    if is_sami_source:
+        tartu_raw = req.text
+    else:
+        tartu_raw = await call_tartu_mt(req.text, src=src_lang, tgt="sme")
+        if not tartu_raw:
+            tartu_raw = "[TartuNLP svarte ikke – bruker Gemini og Divvun direkte]"
+
+    # Trinn 2: Divvun grammatikk- og korrekturkontroll
     divvun_initial = await call_divvun_grammar(tartu_raw) if not tartu_raw.startswith("[") else {"errs": []}
     initial_errs = divvun_initial.get("errs", [])
     divvun_pre_corrected = apply_divvun_suggestions(tartu_raw, initial_errs) if req.auto_apply_divvun and not tartu_raw.startswith("[") else tartu_raw
 
-    # Lokale språksjekker på råutkastet
-    local_tips = local_heuristic_checks(req.text, divvun_pre_corrected if not divvun_pre_corrected.startswith("[") else "")
+    # Lokale språksjekker
+    local_tips = local_heuristic_checks(req.text if not is_sami_source else "", divvun_pre_corrected if not divvun_pre_corrected.startswith("[") else "")
 
     # Trinn 3: Språkvask med Gemini
     llm_result = await call_gemini_refiner(
@@ -563,7 +769,8 @@ async def translate_pipeline(req: TranslateRequest):
         initial_errs,
         local_tips,
         override_key=req.api_key,
-        override_model=req.model
+        override_model=req.model,
+        source_lang=src_lang
     ) if req.use_llm else {
         "final_translation": divvun_pre_corrected,
         "improvements": ["Gemini-språkvask deaktivert av bruker."],
@@ -585,7 +792,7 @@ async def translate_pipeline(req: TranslateRequest):
         if llm_succeeded:
             # La Gemini rette Divvun-merknadene intelligent først
             refined_by_divvun = await call_gemini_final_divvun_pass(
-                req.text, gemini_text, final_errs, override_key=req.api_key, override_model=req.model
+                req.text, gemini_text, final_errs, override_key=req.api_key, override_model=req.model, source_lang=src_lang
             )
             if refined_by_divvun:
                 final_text = refined_by_divvun
@@ -604,10 +811,11 @@ async def translate_pipeline(req: TranslateRequest):
                 f"Divvun-sluttkontroll: Rettet automatisk {fixed_count} av {initial_err_count} Divvun-merknader i sluttproduktet."
             )
 
-    final_local_tips = local_heuristic_checks(req.text, final_text)
+    final_local_tips = local_heuristic_checks(req.text if not is_sami_source else "", final_text)
 
     return {
         "source_text": req.text,
+        "source_lang": src_lang,
         "step1_tartu_raw": tartu_raw,
         "step2_divvun_initial_errors": initial_errs,
         "step2_divvun_corrected": divvun_pre_corrected,
@@ -625,44 +833,100 @@ async def translate_pipeline_stream(req: TranslateRequest):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Teksten er tom.")
 
+    src_lang = req.source_lang.lower().strip() if req.source_lang else "nor"
+    is_sami_source = (src_lang == "sme")
+
     async def event_generator():
         def send_event(obj: dict) -> str:
             return json.dumps(obj, ensure_ascii=False) + "\n"
 
-        # Trinn 1: TartuNLP
-        yield send_event({
-            "type": "progress",
-            "step": 1,
-            "percent": 15,
-            "title": "Trinn 1 av 4: TartuNLP Råoversettelse",
-            "detail": "Henter morfologisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)..."
-        })
-        tartu_raw = await call_tartu_mt(req.text)
-        if not tartu_raw:
-            tartu_raw = "[TartuNLP svarte ikke – bruker Gemini og Divvun direkte]"
+        # Trinn 1: Klargjøring eller TartuNLP
+        if is_sami_source:
+            yield send_event({
+                "type": "progress",
+                "step": 1,
+                "percent": 20,
+                "title": "Trinn 1 av 4: Klargjør nordsamisk tekst",
+                "detail": "Kildeteksten er på nordsamisk – hopper over maskinoversettelse..."
+            })
+            tartu_raw = req.text
+        elif src_lang == "swe":
+            yield send_event({
+                "type": "progress",
+                "step": 1,
+                "percent": 20,
+                "title": "Trinn 1 av 4: TartuNLP Svensk &rarr; Samisk",
+                "detail": "Henter svensk-til-nordsamisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)..."
+            })
+            tartu_raw = await call_tartu_mt(req.text, src="swe", tgt="sme")
+            if not tartu_raw:
+                tartu_raw = "[TartuNLP svarte ikke – bruker Gemini og Divvun direkte]"
+        elif src_lang == "fin":
+            yield send_event({
+                "type": "progress",
+                "step": 1,
+                "percent": 20,
+                "title": "Trinn 1 av 4: TartuNLP Finsk &rarr; Samisk",
+                "detail": "Henter finsk-til-nordsamisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)..."
+            })
+            tartu_raw = await call_tartu_mt(req.text, src="fin", tgt="sme")
+            if not tartu_raw:
+                tartu_raw = "[TartuNLP svarte ikke – bruker Gemini og Divvun direkte]"
+        elif src_lang == "eng":
+            yield send_event({
+                "type": "progress",
+                "step": 1,
+                "percent": 20,
+                "title": "Trinn 1 av 4: TartuNLP Engelsk &rarr; Samisk",
+                "detail": "Henter engelsk-til-nordsamisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)..."
+            })
+            tartu_raw = await call_tartu_mt(req.text, src="eng", tgt="sme")
+            if not tartu_raw:
+                tartu_raw = "[TartuNLP svarte ikke – bruker Gemini og Divvun direkte]"
+        else:
+            yield send_event({
+                "type": "progress",
+                "step": 1,
+                "percent": 20,
+                "title": "Trinn 1 av 4: TartuNLP Norsk &rarr; Samisk",
+                "detail": "Henter morfologisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)..."
+            })
+            tartu_raw = await call_tartu_mt(req.text, src="nor", tgt="sme")
+            if not tartu_raw:
+                tartu_raw = "[TartuNLP svarte ikke – bruker Gemini og Divvun direkte]"
 
         # Trinn 2: Divvun 1. runde
         yield send_event({
             "type": "progress",
             "step": 2,
-            "percent": 35,
-            "title": "Trinn 2 av 4: Divvun Grammatikk & Korrektur (1. runde)",
-            "detail": "Analyserer råutkastet med UiT GiellaLT / Divvun API og kjører lokale språksjekker..."
+            "percent": 40,
+            "title": "Trinn 2 av 4: Divvun Grammatikk & Korrektur",
+            "detail": "Analyserer teksten med UiT GiellaLT / Divvun API og kjører språkregelsjekker..."
         })
         divvun_initial = await call_divvun_grammar(tartu_raw) if not tartu_raw.startswith("[") else {"errs": []}
         initial_errs = divvun_initial.get("errs", [])
         divvun_pre_corrected = apply_divvun_suggestions(tartu_raw, initial_errs) if req.auto_apply_divvun and not tartu_raw.startswith("[") else tartu_raw
-        local_tips = local_heuristic_checks(req.text, divvun_pre_corrected if not divvun_pre_corrected.startswith("[") else "")
+        local_tips = local_heuristic_checks(req.text if not is_sami_source else "", divvun_pre_corrected if not divvun_pre_corrected.startswith("[") else "")
 
         # Trinn 3: Gemini Språkvask
         if req.use_llm:
             chosen_model = (req.model or GEMINI_MODEL).strip() or "gemini-3.1-pro-preview"
+            title_step3 = (
+                f"Trinn 3 av 4: Gemini Språkvask & Korrektur ({chosen_model})"
+                if is_sami_source else
+                f"Trinn 3 av 4: Gemini Språkvask ({chosen_model})"
+            )
+            detail_step3 = (
+                "Retter skrivefeil og forbedrer stilen etter Riektačállinrávvagat og Giellagiehtagirji..."
+                if is_sami_source else
+                "Omskriver til naturlig nordsamisk etter Riektačállinrávvagat og Giellagiehtagirji..."
+            )
             yield send_event({
                 "type": "progress",
                 "step": 3,
-                "percent": 65,
-                "title": f"Trinn 3 av 4: Gemini Språkvask ({chosen_model})",
-                "detail": "Omskriver til naturlig nordsamisk etter NRK Sámi Giellagiehtagirji og Oahpa-grammatikk..."
+                "percent": 70,
+                "title": title_step3,
+                "detail": detail_step3
             })
             llm_result = await call_gemini_refiner(
                 req.text,
@@ -671,7 +935,8 @@ async def translate_pipeline_stream(req: TranslateRequest):
                 initial_errs,
                 local_tips,
                 override_key=req.api_key,
-                override_model=req.model
+                override_model=req.model,
+                source_lang=src_lang
             )
         else:
             llm_result = {
@@ -689,7 +954,7 @@ async def translate_pipeline_stream(req: TranslateRequest):
             "type": "progress",
             "step": 4,
             "percent": 88,
-            "title": "Trinn 4 av 4: Divvun Sluttkontroll & Auto-retting",
+            "title": "Trinn 4 av 4: Divvun Sluttkontroll & Autoretting",
             "detail": "Kontrollerer det ferdige produktet med Divvun og luker ut eventuelle siste merknader..."
         })
         final_divvun = await call_divvun_grammar(gemini_text)
@@ -707,7 +972,7 @@ async def translate_pipeline_stream(req: TranslateRequest):
                     "detail": "Gemini og Divvun retter siste bøyings- og rettskrivingsmerknader..."
                 })
                 refined_by_divvun = await call_gemini_final_divvun_pass(
-                    req.text, gemini_text, final_errs, override_key=req.api_key, override_model=req.model
+                    req.text, gemini_text, final_errs, override_key=req.api_key, override_model=req.model, source_lang=src_lang
                 )
                 if refined_by_divvun:
                     final_text = refined_by_divvun
@@ -725,10 +990,11 @@ async def translate_pipeline_stream(req: TranslateRequest):
                     f"Divvun-sluttkontroll: Rettet automatisk {fixed_count} av {initial_err_count} Divvun-merknader i sluttproduktet."
                 )
 
-        final_local_tips = local_heuristic_checks(req.text, final_text)
+        final_local_tips = local_heuristic_checks(req.text if not is_sami_source else "", final_text)
 
         result_payload = {
             "source_text": req.text,
+            "source_lang": src_lang,
             "step1_tartu_raw": tartu_raw,
             "step2_divvun_initial_errors": initial_errs,
             "step2_divvun_corrected": divvun_pre_corrected,
