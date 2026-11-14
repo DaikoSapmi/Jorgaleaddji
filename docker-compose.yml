@@ -1,0 +1,12 @@
+services:
+  sami-translator:
+    build: .
+    container_name: sami-translator-gemini
+    ports:
+      - "8090:8090"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.1-pro-preview}
+    env_file:
+      - .env
+    restart: unless-stopped
