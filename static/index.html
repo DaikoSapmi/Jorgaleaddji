@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Jorgaleaddji – Norsk til nordsamisk</title>
+  <title>Jorgaleaddji – Norsk → Davvisámegillii</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -24,9 +24,8 @@
         <div>
           <div class="flex items-center space-x-2">
             <h1 class="text-base font-semibold text-slate-900 tracking-tight">Jorgaleaddji</h1>
-            <span class="text-[11px] font-medium px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full">v9</span>
           </div>
-          <p class="text-xs text-slate-500">Norsk &rarr; Davvisámegiella</p>
+          <p id="headerSubtitle" class="text-xs text-slate-500">Norsk &rarr; Davvisámegillii</p>
         </div>
       </div>
 
@@ -158,7 +157,7 @@
               onclick="setSourceLang('swe')"
               class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition"
             >
-              Svensk
+              Svenska
             </button>
             <button
               type="button"
@@ -166,7 +165,7 @@
               onclick="setSourceLang('fin')"
               class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition"
             >
-              Finsk
+              Suomi
             </button>
             <button
               type="button"
@@ -174,16 +173,16 @@
               onclick="setSourceLang('eng')"
               class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition"
             >
-              Engelsk
+              English
             </button>
             <button
               type="button"
               id="btnLangSme"
               onclick="setSourceLang('sme')"
               class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition flex items-center space-x-1"
-              title="Språkvask og korrektur av nordsamisk tekst"
+              title="Giellašaddadeapmi ja divvun davvisámegillii"
             >
-              <span>Nordsamisk</span>
+              <span>Davvisámegiella</span>
               <span class="text-[10px] px-1 py-0.2 bg-indigo-100 text-indigo-700 rounded font-semibold">vask</span>
             </button>
           </div>
