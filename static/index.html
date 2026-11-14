@@ -3,225 +3,302 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Jorgaleaddji</title>
+  <title>Jorgaleaddji – Norsk til nordsamisk</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+  </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
 
-  <!-- Toppbar -->
-  <header class="bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
-    <div class="flex items-center space-x-3">
-      <div class="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-lg">
-        SÁ
+  <!-- Topplinje -->
+  <header class="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-30 px-4 sm:px-6 py-3 transition">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      
+      <!-- Logo & tittel -->
+      <div class="flex items-center space-x-3">
+        <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm tracking-wide shadow-sm shadow-indigo-200">
+          SÁ
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-base font-semibold text-slate-900 tracking-tight">Jorgaleaddji</h1>
+            <span class="text-[11px] font-medium px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full">v9</span>
+          </div>
+          <p class="text-xs text-slate-500">Norsk &rarr; Davvisámegiella</p>
+        </div>
       </div>
-      <div>
-        <h1 class="text-lg font-bold text-slate-900">Jorgaleaddji &amp; <span class="text-xs font-normal px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full ml-1">Gemini 3.1 v9</span></h1>
-        <p class="text-xs text-slate-500">Norsk &rarr; Davvisámegiella &bull; TartuNLP + UiT Divvun API + Gemini 3.1 (NRK Sámi Giellagiehtagirji)</p>
+
+      <!-- Høyre side: Status og innstillinger-knapp -->
+      <div class="flex items-center space-x-2">
+        <div id="headerModelBadge" class="hidden sm:inline-flex items-center text-xs text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5"></span>
+          <span id="headerModelLabel">gemini-3.1-pro-preview</span>
+        </div>
+
+        <button
+          id="toggleSettingsBtn"
+          onclick="toggleSettings()"
+          class="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200/80 rounded-lg border border-slate-200/70 transition"
+          title="Åpne innstillinger for modell og API-nøkkel"
+        >
+          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          </svg>
+          <span>Innstillinger</span>
+        </button>
       </div>
+
     </div>
 
-    <div class="flex flex-wrap items-center gap-3 text-sm">
-      <div class="flex items-center space-x-2">
-        <select id="geminiModel" class="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:border-indigo-500">
-          <option value="gemini-3.1-pro-preview" selected>gemini-3.1-pro-preview (Anbefalt)</option>
-          <option value="gemini-3.1-flash-preview">gemini-3.1-flash-preview (Raskest)</option>
-          <option value="gemini-3.0-pro">gemini-3.0-pro</option>
-          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-        </select>
-        <button
-          onclick="loadAvailableModels()"
-          title="Hent gyldige modeller fra Google API"
-          class="text-xs px-2.5 py-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 rounded-lg border border-slate-200 transition"
-        >
-          Hent mine modeller
-        </button>
-        <input
-          type="password"
-          id="geminiKeyInput"
-          placeholder="Valgfri Gemini API-nøkkel (hvis ikke i .env)"
-          class="text-xs border border-slate-200 rounded-lg px-3 py-1.5 w-56 focus:outline-none focus:border-indigo-500"
-        />
+    <!-- Innstillingspanel (skjult som standard for rent utseende) -->
+    <div id="settingsPanel" class="hidden border-t border-slate-200 mt-3 pt-3 pb-1 max-w-7xl mx-auto text-xs">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+        
+        <!-- Modellvalg -->
+        <div class="space-y-1.5">
+          <label class="font-medium text-slate-700 flex items-center justify-between">
+            <span>Gemini-modell</span>
+            <button onclick="loadAvailableModels()" class="text-indigo-600 hover:underline text-[11px]">Oppdater modeller</button>
+          </label>
+          <select id="geminiModel" class="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-indigo-500">
+            <option value="gemini-3.1-pro-preview" selected>gemini-3.1-pro-preview (Anbefalt)</option>
+            <option value="gemini-3.1-flash-preview">gemini-3.1-flash-preview (Rask)</option>
+            <option value="gemini-3.0-pro">gemini-3.0-pro</option>
+            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+          </select>
+        </div>
+
+        <!-- API-nøkkel -->
+        <div class="space-y-1.5">
+          <label class="font-medium text-slate-700">Gemini API-nøkkel</label>
+          <input
+            type="password"
+            id="geminiKeyInput"
+            placeholder="Valgfri nøkkel (hvis ikke i .env)"
+            class="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-indigo-500"
+          />
+        </div>
+
+        <!-- Toggles -->
+        <div class="space-y-2 pt-1">
+          <label class="flex items-center space-x-2 cursor-pointer">
+            <input type="checkbox" id="autoApplyDivvun" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
+            <span class="text-slate-700 font-medium">Automatisk retting av Divvun-feil</span>
+          </label>
+          <label class="flex items-center space-x-2 cursor-pointer">
+            <input type="checkbox" id="useLlm" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
+            <span class="text-slate-700 font-medium">Gemini språkvask</span>
+          </label>
+        </div>
+
       </div>
-      <label class="flex items-center space-x-2 cursor-pointer" title="Rett feil i Tartu-utkastet og sluttproduktet automatisk">
-        <input type="checkbox" id="autoApplyDivvun" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
-        <span class="text-slate-700 text-xs font-medium">Auto-rett alle Divvun-feil</span>
-      </label>
-      <label class="flex items-center space-x-2 cursor-pointer">
-        <input type="checkbox" id="useLlm" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
-        <span class="text-slate-700 text-xs font-medium">Gemini språkvask</span>
-      </label>
     </div>
   </header>
 
   <!-- Hovedinnhold -->
-  <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-4">
 
-    <!-- Hurtigknapper for samiske spesialtegn -->
-    <div class="flex flex-wrap items-center justify-between bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm">
-      <div class="flex items-center space-x-1.5">
-        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 mr-2">Samiske tegn:</span>
-        <button onclick="insertChar('Á')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">Á</button>
-        <button onclick="insertChar('á')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">á</button>
-        <button onclick="insertChar('Č')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">Č</button>
-        <button onclick="insertChar('č')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">č</button>
-        <button onclick="insertChar('Đ')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">Đ</button>
-        <button onclick="insertChar('đ')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">đ</button>
-        <button onclick="insertChar('Ŋ')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">Ŋ</button>
-        <button onclick="insertChar('ŋ')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">ŋ</button>
-        <button onclick="insertChar('Š')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">Š</button>
-        <button onclick="insertChar('š')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">š</button>
-        <button onclick="insertChar('Ŧ')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">Ŧ</button>
-        <button onclick="insertChar('ŧ')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">ŧ</button>
-        <button onclick="insertChar('Ž')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">Ž</button>
-        <button onclick="insertChar('ž')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded text-sm font-medium transition">ž</button>
+    <!-- Samiske spesialtegn og snarveier (slank minimalistisk linje) -->
+    <div class="flex flex-wrap items-center justify-between gap-2 px-1">
+      <div class="flex flex-wrap items-center gap-1">
+        <span class="text-xs text-slate-400 font-medium mr-1">Samiske tegn:</span>
+        <button onclick="insertChar('Á')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Á</button>
+        <button onclick="insertChar('á')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">á</button>
+        <button onclick="insertChar('Č')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Č</button>
+        <button onclick="insertChar('č')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">č</button>
+        <button onclick="insertChar('Đ')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Đ</button>
+        <button onclick="insertChar('đ')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">đ</button>
+        <button onclick="insertChar('Ŋ')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Ŋ</button>
+        <button onclick="insertChar('ŋ')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">ŋ</button>
+        <button onclick="insertChar('Š')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Š</button>
+        <button onclick="insertChar('š')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">š</button>
+        <button onclick="insertChar('Ŧ')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Ŧ</button>
+        <button onclick="insertChar('ŧ')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">ŧ</button>
+        <button onclick="insertChar('Ž')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">Ž</button>
+        <button onclick="insertChar('ž')" class="w-7 h-7 inline-flex items-center justify-center bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-md border border-slate-200 text-xs font-medium text-slate-700 transition">ž</button>
       </div>
-      <div class="text-xs text-slate-400 mt-2 sm:mt-0">
-        Hurtigtast: <kbd class="px-1.5 py-0.5 bg-slate-100 border rounded">Cmd + Enter</kbd> for å oversette
+      <div class="text-[11px] text-slate-400">
+        <kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono">⌘ + Enter</kbd> for å oversette
       </div>
     </div>
 
-    <!-- Sanntids Progresjonsbar & Steg-indikator -->
-    <div id="progressContainer" class="hidden bg-white p-5 rounded-2xl border border-indigo-200 shadow-sm space-y-3 transition-all">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center space-x-2.5">
-          <svg id="progressSpinner" class="animate-spin h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <!-- Fremdriftsindikator (slank og diskret) -->
+    <div id="progressContainer" class="hidden bg-white p-3.5 rounded-xl border border-indigo-100 shadow-sm space-y-2 transition-all">
+      <div class="flex items-center justify-between text-xs">
+        <div class="flex items-center space-x-2">
+          <svg id="progressSpinner" class="animate-spin h-3.5 w-3.5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
           </svg>
-          <span id="progressTitle" class="text-sm font-bold text-slate-800">Starter oversettelse...</span>
+          <span id="progressTitle" class="font-semibold text-slate-800">Oversetter...</span>
         </div>
-        <div class="flex items-center space-x-3">
-          <span id="progressTimer" class="text-xs font-mono text-slate-500">0.0s</span>
-          <span id="progressPercent" class="text-xs font-bold text-indigo-600">0%</span>
+        <div class="flex items-center space-x-2 text-slate-500 font-mono">
+          <span id="progressTimer">0.0s</span>
+          <span>&bull;</span>
+          <span id="progressPercent" class="font-semibold text-indigo-600">0%</span>
         </div>
       </div>
 
-      <!-- Selve fremdriftslinjen -->
-      <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-        <div id="progressBar" class="bg-indigo-600 h-full rounded-full transition-all duration-500 ease-out" style="width: 5%"></div>
+      <!-- Framdriftslinje -->
+      <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+        <div id="progressBar" class="bg-indigo-600 h-full rounded-full transition-all duration-300" style="width: 5%"></div>
       </div>
 
-      <p id="progressDetail" class="text-xs text-slate-500">Klargjør forespørsel...</p>
-
-      <!-- 4 visuelle trinn-bokser -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
-        <div id="stepPill1" class="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 font-medium flex items-center space-x-1.5">
-          <span>1. TartuNLP Råutkast</span>
-        </div>
-        <div id="stepPill2" class="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 font-medium flex items-center space-x-1.5">
-          <span>2. Divvun 1. sjekk</span>
-        </div>
-        <div id="stepPill3" class="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 font-medium flex items-center space-x-1.5">
-          <span>3. Gemini Språkvask</span>
-        </div>
-        <div id="stepPill4" class="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 font-medium flex items-center space-x-1.5">
-          <span>4. Divvun Sluttsjekk</span>
-        </div>
+      <!-- Stegvis oversikt -->
+      <div class="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
+        <span id="stepPill1">1. TartuNLP</span>
+        <span class="text-slate-300">&rarr;</span>
+        <span id="stepPill2">2. Divvun</span>
+        <span class="text-slate-300">&rarr;</span>
+        <span id="stepPill3">3. Gemini</span>
+        <span class="text-slate-300">&rarr;</span>
+        <span id="stepPill4">4. Sluttkontroll</span>
       </div>
+      <p id="progressDetail" class="text-[11px] text-slate-500 truncate"></p>
     </div>
 
-    <!-- Oversettelsespanel (2 kolonner ala DeepL) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Hovedoversetter (To kolonner) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-      <!-- Venstre: Norsk kildetekst -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-        <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <span class="font-semibold text-sm text-slate-700">Norsk (Bokmål / Nynorsk)</span>
-          <button onclick="loadExample()" class="text-xs text-indigo-600 hover:underline">Sett inn testeksempel</button>
+      <!-- Venstre: Norsk kilde -->
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm flex flex-col overflow-hidden focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-50 transition">
+        <div class="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+          <span class="text-xs font-semibold text-slate-700 tracking-wide uppercase">Norsk</span>
+          <div class="flex items-center space-x-3 text-xs">
+            <button onclick="loadExample()" class="text-indigo-600 hover:text-indigo-800 transition">Testeksempel</button>
+            <button id="clearBtn" onclick="clearSource()" class="text-slate-400 hover:text-slate-600 transition hidden">Tøm</button>
+          </div>
         </div>
+
         <textarea
           id="sourceText"
-          rows="12"
+          rows="11"
           placeholder="Skriv eller lim inn norsk tekst her..."
-          class="w-full p-5 text-base text-slate-800 focus:outline-none resize-y flex-1"
+          class="w-full p-4 text-base text-slate-800 placeholder-slate-400 focus:outline-none resize-y flex-1 leading-relaxed"
         ></textarea>
-        <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
-          <span id="charCount" class="text-xs text-slate-400">0 tegn</span>
+
+        <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/40">
+          <span id="charCount" class="text-xs text-slate-400">0 ord &bull; 0 tegn</span>
           <button
             id="translateBtn"
             onclick="runPipeline()"
-            class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-sm transition flex items-center space-x-2"
+            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5 disabled:opacity-50"
           >
             <span>Oversett &amp; korrekturles</span>
           </button>
         </div>
       </div>
 
-      <!-- Høyre: Ferdig nordsamisk produkt -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-        <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+      <!-- Høyre: Nordsamisk ferdig produkt -->
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm flex flex-col overflow-hidden focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-50 transition">
+        <div class="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
           <div class="flex items-center space-x-2">
-            <span class="font-semibold text-sm text-slate-700">Davvisámegiella (Ferdig produkt)</span>
-            <span id="pipelineBadge" class="hidden px-2 py-0.5 text-[11px] rounded-full font-medium"></span>
+            <span class="text-xs font-semibold text-slate-700 tracking-wide uppercase">Davvisámegiella</span>
+            <span id="pipelineBadge" class="hidden px-2 py-0.5 text-[10px] rounded-full font-medium"></span>
           </div>
-          <div class="flex items-center space-x-3">
-            <button onclick="recheckDivvun()" class="text-xs text-indigo-600 hover:underline">Sjekk med Divvun på nytt</button>
-            <button onclick="copyResult()" class="text-xs text-slate-600 hover:text-slate-900 font-medium">Kopier</button>
+          <div class="flex items-center space-x-3 text-xs">
+            <button onclick="recheckDivvun()" class="text-indigo-600 hover:text-indigo-800 transition">Sjekk med Divvun</button>
+            <button id="copyBtn" onclick="copyResult()" class="text-slate-600 hover:text-slate-900 font-medium transition">Kopier</button>
           </div>
         </div>
+
         <textarea
           id="targetText"
-          rows="12"
-          placeholder="Den ferdig vaskede og korrekturlese nordsamiske teksten vises her..."
-          class="w-full p-5 text-base text-slate-900 focus:outline-none resize-y flex-1"
+          rows="11"
+          placeholder="Den ferdig vaskede og korrekturleste nordsamiske teksten vises her..."
+          class="w-full p-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none resize-y flex-1 leading-relaxed"
         ></textarea>
-        <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/30 text-xs text-slate-500">
-          <span id="statusText">Klar (gemini-3.1-pro-preview på port 8090)</span>
-          <a href="https://satni.org" target="_blank" class="text-indigo-600 hover:underline">Slå opp i satni.org &nearr;</a>
+
+        <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/40 text-xs text-slate-500">
+          <span id="targetCount" class="text-slate-400">0 ord &bull; 0 tegn</span>
+          <div class="flex items-center space-x-3">
+            <span id="statusText" class="truncate max-w-[240px] sm:max-w-none">Klar</span>
+            <a href="https://satni.org" target="_blank" rel="noopener" class="text-indigo-600 hover:underline">Sátni.org &nearr;</a>
+          </div>
         </div>
       </div>
 
     </div>
 
-    <!-- Tretrinns Pipeline-inspektør (Viser Tartu -> Divvun -> Gemini Språkvask) -->
-    <div id="pipelineDetails" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Oversettelsesinnsikt: Kompakt fanevisning i stedet for 3 tunge kort ("Less is more") -->
+    <div id="pipelineDetails" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+      
+      <!-- Fanehode -->
+      <div class="border-b border-slate-200 px-4 flex items-center justify-between bg-slate-50/50">
+        <div class="flex items-center space-x-1 sm:space-x-2">
+          <button
+            id="tabBtnImprovements"
+            onclick="switchTab('improvements')"
+            class="px-3 py-2.5 text-xs font-semibold border-b-2 border-indigo-600 text-indigo-700 flex items-center space-x-1.5 transition"
+          >
+            <span>Språkvask &amp; råd</span>
+            <span id="badgeImprovementsCount" class="px-1.5 py-0.2 bg-indigo-100 text-indigo-700 text-[10px] rounded-full font-bold">0</span>
+          </button>
 
-      <!-- Kort 1: TartuNLP råutkast -->
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">1. TartuNLP Råoversettelse</h3>
-          <span class="text-[11px] text-slate-400">translate.ut.ee</span>
+          <button
+            id="tabBtnDivvun"
+            onclick="switchTab('divvun')"
+            class="px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 flex items-center space-x-1.5 transition"
+          >
+            <span>Divvun-merknader</span>
+            <span id="badgeDivvunCount" class="px-1.5 py-0.2 bg-slate-100 text-slate-600 text-[10px] rounded-full font-bold">0</span>
+          </button>
+
+          <button
+            id="tabBtnTartu"
+            onclick="switchTab('tartu')"
+            class="px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 flex items-center space-x-1.5 transition"
+          >
+            <span>Råutkast (TartuNLP)</span>
+          </button>
         </div>
-        <p id="tartuRawBox" class="text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-100 max-h-60 overflow-y-auto whitespace-pre-wrap"></p>
+
+        <div id="usedModelLabel" class="text-[11px] text-slate-400 hidden sm:block"></div>
       </div>
 
-      <!-- Kort 2: Divvun Korrektur & Forslag -->
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">2. Divvun Korrektur &amp; Grammatikk</h3>
-          <span class="text-[11px] text-slate-400">Klikk for å bytte ord</span>
+      <!-- Faneinnhold -->
+      <div class="p-4 text-xs">
+        
+        <!-- Fane 1: Språkvask & råd -->
+        <div id="tabContentImprovements" class="space-y-2">
+          <div id="languageTipsBox" class="space-y-2 max-h-72 overflow-y-auto"></div>
         </div>
-        <div id="divvunErrorsBox" class="space-y-2 text-sm max-h-60 overflow-y-auto"></div>
-      </div>
 
-      <!-- Kort 3: Språklige råd (Gemini + NRK Sámi Giellagiehtagirji) -->
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">3. Gemini Språkvask &amp; Giellagiehtagirji</h3>
-          <span id="usedModelLabel" class="text-[11px] text-slate-400">gemini-3.1-pro-preview</span>
+        <!-- Fane 2: Divvun-merknader -->
+        <div id="tabContentDivvun" class="hidden space-y-2">
+          <div id="divvunErrorsBox" class="space-y-2 max-h-72 overflow-y-auto"></div>
         </div>
-        <div id="languageTipsBox" class="space-y-2 text-sm max-h-60 overflow-y-auto"></div>
-      </div>
 
+        <!-- Fane 3: Råutkast -->
+        <div id="tabContentTartu" class="hidden space-y-2">
+          <div class="text-slate-500 text-[11px] mb-1">Morfologisk førsteutkast fra Universitetet i Tartu (translate.ut.ee):</div>
+          <div id="tartuRawBox" class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-slate-700 font-mono text-xs whitespace-pre-wrap max-h-72 overflow-y-auto"></div>
+        </div>
+
+      </div>
     </div>
 
-    <!-- Innebygd sjekkliste fra NRK Sámi Giellagiehtagirji -->
-    <details class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-      <summary class="font-semibold text-sm text-slate-800 cursor-pointer">
-        Innebygde språkregler og sjekkliste (NRK Sámi Giellagiehtagirji &amp; UiT Giellatekno)
+    <!-- Språkregler & rettesnorer (Kompakt referanse) -->
+    <details class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-xs">
+      <summary class="font-medium text-slate-700 cursor-pointer hover:text-slate-900 transition flex items-center justify-between">
+        <span>Språkregler fra NRK Sámi Giellagiehtagirji &amp; UiT Giellatekno</span>
+        <span class="text-slate-400 text-[11px]">Vis veiledning &darr;</span>
       </summary>
-      <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-600 leading-relaxed">
-        <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-          <p class="font-bold text-slate-800 mb-1">1. Verbspråk og aktiv form</p>
-          <p>Unngå substantivsyke! Bruk verbavledninger (<em>borastit, borragoahtit, ollašuhttit</em>). Snu passive <em>-(oj)uvvot</em>-setninger til aktiv når den som utfører handlingen er kjent.</p>
+      <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-slate-600 leading-relaxed pt-2 border-t border-slate-100">
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+          <p class="font-semibold text-slate-800 mb-1">1. Verbspråk &amp; aktiv form</p>
+          <p>Unngå substantivsyke. Gjør tunge substantiv om til verbavledninger (<em>-goahtit, -stit, -lit</em>). Passive setninger på <em>-(oj)uvvot</em> skrives om til aktiv når agenten er kjent.</p>
         </div>
-        <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-          <p class="font-bold text-slate-800 mb-1">2. Su vs. Iežas &amp; Tallkongruens</p>
-          <p><em>Iežas/iežaset</em> viser tilbake til setningens subjekt. <em>Su/sin</em> viser til en annen person. Etter tall over 1 står substantivet i entall genitiv (<em>guokte olbmo bohte</em>).</p>
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+          <p class="font-semibold text-slate-800 mb-1">2. Su vs. iežas &amp; tallord</p>
+          <p>Bruk <em>iežas/iežaset</em> når det viser tilbake til setningens subjekt. Etter tallord over 1 skal substantivet stå i entall genitiv (<em>guokte olbmo bohte</em>).</p>
         </div>
-        <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-          <p class="font-bold text-slate-800 mb-1">3. Spørrepartikler og reksjon</p>
-          <p>Bruk aldri <em>jos</em> i usikre spørresetninger (bruk <em>-go</em>: <em>In dieđe boahtá go</em>). Bruk <em>vai</em> i spørsmål, ikke <em>dahje</em>. Sjekk at <em>liikot/luohttit</em> får illativ og <em>beroštit/ballat</em> får lokativ.</p>
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+          <p class="font-semibold text-slate-800 mb-1">3. Spørrepartikler &amp; reksjon</p>
+          <p>Bruk <em>-go</em> i indirekte spørsmål (<em>In dieđe boahtágo</em>), aldri <em>jos</em>. Bruk <em>vai</em> i spørsmål, ikke <em>dahje</em>. Sjekk riktig kasusstyring for verb.</p>
         </div>
       </div>
     </details>
@@ -235,10 +312,20 @@
     const keyInput = document.getElementById('geminiKeyInput');
     const modelSelect = document.getElementById('geminiModel');
     const badgeEl = document.getElementById('pipelineBadge');
+    const headerModelBadge = document.getElementById('headerModelBadge');
+    const headerModelLabel = document.getElementById('headerModelLabel');
+    const clearBtn = document.getElementById('clearBtn');
+    const targetCount = document.getElementById('targetCount');
 
     let timerInterval = null;
     let startTime = 0;
+    let activeTextarea = targetEl;
 
+    // Husk aktivt tekstfelt for innsetting av spesialtegn
+    sourceEl.addEventListener('focus', () => { activeTextarea = sourceEl; });
+    targetEl.addEventListener('focus', () => { activeTextarea = targetEl; });
+
+    // Hent lagret API-nøkkel
     if (localStorage.getItem('sami_gemini_key')) {
       keyInput.value = localStorage.getItem('sami_gemini_key');
     }
@@ -247,6 +334,97 @@
       loadAvailableModels();
     });
 
+    modelSelect.addEventListener('change', () => {
+      headerModelLabel.textContent = modelSelect.value;
+    });
+
+    function toggleSettings() {
+      const panel = document.getElementById('settingsPanel');
+      panel.classList.toggle('hidden');
+    }
+
+    function countWords(str) {
+      const trimmed = str.trim();
+      return trimmed ? trimmed.split(/\s+/).length : 0;
+    }
+
+    function updateCounts() {
+      const sVal = sourceEl.value;
+      const sWords = countWords(sVal);
+      document.getElementById('charCount').textContent = `${sWords} ord \u2022 ${sVal.length} tegn`;
+      clearBtn.classList.toggle('hidden', sVal.length === 0);
+
+      const tVal = targetEl.value;
+      const tWords = countWords(tVal);
+      targetCount.textContent = `${tWords} ord \u2022 ${tVal.length} tegn`;
+    }
+
+    sourceEl.addEventListener('input', updateCounts);
+    targetEl.addEventListener('input', updateCounts);
+
+    sourceEl.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        runPipeline();
+      }
+    });
+
+    function clearSource() {
+      sourceEl.value = '';
+      updateCounts();
+      sourceEl.focus();
+    }
+
+    function insertChar(ch) {
+      const el = activeTextarea || targetEl;
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const val = el.value;
+      el.value = val.slice(0, start) + ch + val.slice(end);
+      el.focus();
+      el.selectionStart = el.selectionEnd = start + ch.length;
+      updateCounts();
+    }
+
+    function loadExample() {
+      sourceEl.value = "Statsforvalteren har gitt fellingstillatelse på bjørn. Saken ble behandlet av kommunestyret i går, men jeg vet ikke om fem personer kommer i morgen eller på fredag.";
+      updateCounts();
+    }
+
+    function copyResult() {
+      if (!targetEl.value) return;
+      navigator.clipboard.writeText(targetEl.value);
+      const copyBtn = document.getElementById('copyBtn');
+      const originalText = copyBtn.textContent;
+      copyBtn.textContent = "Kopiert!";
+      copyBtn.classList.add('text-emerald-600');
+      statusText.textContent = "Kopiert til utklippstavlen.";
+      setTimeout(() => {
+        copyBtn.textContent = originalText;
+        copyBtn.classList.remove('text-emerald-600');
+      }, 1800);
+    }
+
+    function applySuggestion(oldWord, newWord) {
+      targetEl.value = targetEl.value.replace(oldWord, newWord);
+      updateCounts();
+      recheckDivvun();
+    }
+
+    function switchTab(tab) {
+      const tabs = ['improvements', 'divvun', 'tartu'];
+      tabs.forEach(t => {
+        const btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+        const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
+        if (t === tab) {
+          btn.className = "px-3 py-2.5 text-xs font-semibold border-b-2 border-indigo-600 text-indigo-700 flex items-center space-x-1.5 transition";
+          content.classList.remove('hidden');
+        } else {
+          btn.className = "px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 flex items-center space-x-1.5 transition";
+          content.classList.add('hidden');
+        }
+      });
+    }
+
     async function loadAvailableModels() {
       const key = keyInput.value.trim();
       const url = key ? `/api/config?api_key=${encodeURIComponent(key)}` : '/api/config';
@@ -254,7 +432,7 @@
         const resp = await fetch(url);
         const cfg = await resp.json();
         if (cfg.has_env_key) {
-          keyInput.placeholder = "Nøkkel lastet fra .env (kan overstyres her)";
+          keyInput.placeholder = "Aktiv fra .env (kan overstyres her)";
         }
         if (cfg.available_models && cfg.available_models.length > 0) {
           const preferred = 'gemini-3.1-pro-preview';
@@ -266,48 +444,16 @@
           } else if (cfg.env_model && cfg.available_models.some(m => m.id === cfg.env_model)) {
             modelSelect.value = cfg.env_model;
           }
-          statusText.textContent = `Lastet ${cfg.available_models.length} modeller fra nøkkelen din (valgt: ${modelSelect.value}).`;
+          headerModelLabel.textContent = modelSelect.value;
+          headerModelBadge.classList.remove('hidden');
+          statusText.textContent = `Modeller lastet (${modelSelect.value}).`;
         }
       } catch (e) {
-        console.warn("Kunne ikke hente modell-liste:", e);
+        console.warn("Kunne ikke hente modeller:", e);
       }
     }
 
     loadAvailableModels();
-
-    sourceEl.addEventListener('input', () => {
-      document.getElementById('charCount').textContent = `${sourceEl.value.length} tegn`;
-    });
-
-    sourceEl.addEventListener('keydown', (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        runPipeline();
-      }
-    });
-
-    function insertChar(ch) {
-      const start = targetEl.selectionStart;
-      const end = targetEl.selectionEnd;
-      const val = targetEl.value;
-      targetEl.value = val.slice(0, start) + ch + val.slice(end);
-      targetEl.focus();
-      targetEl.selectionStart = targetEl.selectionEnd = start + ch.length;
-    }
-
-    function loadExample() {
-      sourceEl.value = "Statsforvalteren har gitt fellingstillatelse på bjørn. Saken ble behandlet av kommunestyret i går, men jeg vet ikke om fem personer kommer i morgen eller på fredag.";
-      document.getElementById('charCount').textContent = `${sourceEl.value.length} tegn`;
-    }
-
-    function copyResult() {
-      navigator.clipboard.writeText(targetEl.value);
-      statusText.textContent = "Kopiert til utklippstavlen!";
-    }
-
-    function applySuggestion(oldWord, newWord) {
-      targetEl.value = targetEl.value.replace(oldWord, newWord);
-      recheckDivvun();
-    }
 
     function updateProgressUI(step, percent, title, detail, done = false) {
       const container = document.getElementById('progressContainer');
@@ -335,28 +481,34 @@
 
       for (let i = 1; i <= 4; i++) {
         const pill = document.getElementById(`stepPill${i}`);
-        pill.className = "px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center space-x-1.5 transition-all ";
+        if (!pill) continue;
         if (done || i < step) {
-          pill.className += "border-emerald-200 bg-emerald-50 text-emerald-700";
+          pill.className = "text-emerald-600 font-semibold";
         } else if (i === step) {
-          pill.className += "border-indigo-300 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-100 font-bold";
+          pill.className = "text-indigo-600 font-bold underline";
         } else {
-          pill.className += "border-slate-200 bg-slate-50 text-slate-400";
+          pill.className = "text-slate-400";
         }
       }
     }
 
     function renderErrors(errs) {
       const box = document.getElementById('divvunErrorsBox');
-      if (!errs || errs.length === 0) {
-        box.innerHTML = `<div class="p-3 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200 text-xs">Ingen stave- eller grammatikkfeil funnet av Divvun!</div>`;
+      const badgeCount = document.getElementById('badgeDivvunCount');
+      const count = errs ? errs.length : 0;
+      badgeCount.textContent = count;
+
+      if (count === 0) {
+        badgeCount.className = "px-1.5 py-0.2 bg-emerald-100 text-emerald-700 text-[10px] rounded-full font-bold";
+        box.innerHTML = `<div class="p-3 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-100 text-xs">Ingen gjenstående feil funnet av Divvun!</div>`;
         return;
       }
+      badgeCount.className = "px-1.5 py-0.2 bg-amber-100 text-amber-800 text-[10px] rounded-full font-bold";
       box.innerHTML = errs.map(e => {
-        const safeErr = (e.error_text || '').replace(/'/g, "\'");
+        const safeErr = (e.error_text || '').replace(/'/g, "\\'");
         const suggs = (e.suggestions || []).map(s => {
-          const safeSugg = s.replace(/'/g, "\'");
-          return `<button onclick="applySuggestion('${safeErr}', '${safeSugg}')" class="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-medium mr-1 mt-1 border border-indigo-200">${s}</button>`;
+          const safeSugg = s.replace(/'/g, "\\'");
+          return `<button onclick="applySuggestion('${safeErr}', '${safeSugg}')" class="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-medium mr-1 mt-1 border border-indigo-200 transition">${s}</button>`;
         }).join('');
         return `
           <div class="p-2.5 bg-amber-50/70 rounded-lg border border-amber-200 text-xs">
@@ -370,15 +522,20 @@
 
     function renderTips(improvements, tips) {
       const box = document.getElementById('languageTipsBox');
+      const badgeCount = document.getElementById('badgeImprovementsCount');
       let html = '';
+      let totalCount = 0;
+
       if (improvements && improvements.length > 0) {
+        totalCount += improvements.length;
         html += improvements.map(imp => `
           <div class="p-2.5 bg-indigo-50/60 rounded-lg border border-indigo-100 text-xs text-slate-700">
-            <span class="font-semibold text-indigo-900">Gemini:</span> ${imp}
+            <span class="font-semibold text-indigo-900">Språkvask:</span> ${imp}
           </div>
         `).join('');
       }
       if (tips && tips.length > 0) {
+        totalCount += tips.length;
         html += tips.map(t => `
           <div class="p-2.5 bg-rose-50/70 rounded-lg border border-rose-200 text-xs">
             <div class="font-semibold text-rose-900">${t.rule} <span class="text-[10px] text-rose-600">(${t.reference})</span></div>
@@ -386,14 +543,17 @@
           </div>
         `).join('');
       }
+      badgeCount.textContent = totalCount;
+
       if (!html) {
-        html = `<div class="p-3 bg-slate-50 text-slate-600 rounded-lg border border-slate-100 text-xs">Alle sjekkpunkter fra Giellagiehtagirji er oppfylt.</div>`;
+        html = `<div class="p-3 bg-slate-50 text-slate-600 rounded-lg border border-slate-100 text-xs">Teksten oppfyller alle sjekkpunkter fra NRK Sámi Giellagiehtagirji.</div>`;
       }
       box.innerHTML = html;
     }
 
     function displayFinalData(data) {
       targetEl.value = data.step3_final_text || '';
+      updateCounts();
       document.getElementById('tartuRawBox').textContent = data.step1_tartu_raw || '';
       document.getElementById('pipelineDetails').classList.remove('hidden');
 
@@ -402,12 +562,13 @@
         badgeEl.textContent = `Gemini (${data.used_model}) + Divvun`;
         badgeEl.classList.add('bg-emerald-100', 'text-emerald-800');
       } else {
-        badgeEl.textContent = `Kun Tartu + Divvun (se merknad i boks 3)`;
+        badgeEl.textContent = `Tartu + Divvun`;
         badgeEl.classList.add('bg-amber-100', 'text-amber-800');
       }
 
       if (data.used_model) {
-        document.getElementById('usedModelLabel').textContent = data.used_model;
+        document.getElementById('usedModelLabel').textContent = `Modell: ${data.used_model}`;
+        headerModelLabel.textContent = data.used_model;
       }
 
       const errsToShow = (data.final_divvun_errors && data.final_divvun_errors.length > 0)
@@ -416,9 +577,13 @@
 
       renderErrors(errsToShow);
       renderTips(data.step3_improvements, data.language_tips);
+
       statusText.textContent = data.llm_active
-        ? `Ferdig: Språkvasket av ${data.used_model} og sjekket med Divvun.`
-        : `Obs: Gemini-steget ble ikke brukt – se boks 3 under.`;
+        ? `Fullført med ${data.used_model}`
+        : `Fullført (uten Gemini)`;
+
+      // Vis automatisk fanen med forbedringer hvis det finnes noen
+      switchTab('improvements');
     }
 
     async function runPipeline() {
@@ -427,7 +592,7 @@
 
       const btn = document.getElementById('translateBtn');
       btn.disabled = true;
-      btn.innerHTML = `<span>Arbeider...</span>`;
+      btn.innerHTML = `<span>Oversetter...</span>`;
 
       startTime = Date.now();
       const timerEl = document.getElementById('progressTimer');
@@ -437,7 +602,7 @@
         timerEl.textContent = `${elapsed}s`;
       }, 100);
 
-      updateProgressUI(1, 5, "Starter oversettelses-pipeline...", "Sender tekst til server...", false);
+      updateProgressUI(1, 5, "Starter oversettelse...", "Sender tekst til server...", false);
 
       try {
         const resp = await fetch('/api/translate-stream', {
@@ -475,13 +640,13 @@
               statusText.textContent = msg.title;
             } else if (msg.type === 'result') {
               const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
-              updateProgressUI(4, 100, `Ferdig på ${totalSec} sekunder!`, "Alle trinn (TartuNLP, Divvun og Gemini) er fullført.", true);
+              updateProgressUI(4, 100, `Fullført på ${totalSec}s`, "Alle trinn er fullført.", true);
               displayFinalData(msg.data);
             }
           }
         }
       } catch (err) {
-        statusText.textContent = "Feil under oversettelse: " + err.message;
+        statusText.textContent = "Feil: " + err.message;
         updateProgressUI(1, 100, "Feil under oversettelse", err.message, true);
       } finally {
         if (timerInterval) clearInterval(timerInterval);
@@ -493,7 +658,7 @@
     async function recheckDivvun() {
       const text = targetEl.value.trim();
       if (!text) return;
-      statusText.textContent = "Sjekker tekst med Divvun API...";
+      statusText.textContent = "Sjekker med Divvun...";
       try {
         const resp = await fetch('/api/proofread', {
           method: 'POST',
@@ -504,6 +669,7 @@
         document.getElementById('pipelineDetails').classList.remove('hidden');
         renderErrors(data.errs);
         renderTips([], data.language_tips);
+        switchTab('divvun');
         statusText.textContent = `Divvun-sjekk fullført (${data.errs.length} merknader).`;
       } catch (err) {
         statusText.textContent = "Kunne ikke nå Divvun API.";
