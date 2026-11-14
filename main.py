@@ -27,7 +27,7 @@ Når du reviderer og oversetter teksten, MÅ du følge disse reglene:
 3. AKTIIVA GIELLA (Aktivt språk): Hvis en passiv setning med -(oj)uvvot nevner hvem som utfører handlingen (subjekt/agent), MÅ setningen skrives om til aktiv. ("Ášši meannuduvvui suohkanstivrras" -> "Suohkanstivra meannudii ášši"). Passiv med -hallat brukes kun når noe er uheldig for den som rammes, med agenten i illativ ("Áhkku vuojáhalai boastabiilii").
 4. SU vs. IEŽAS: Bruk refleksivt pronomen (iežan, iežat, iežas, iežame, iežade, iežaska, iežamet, iežadet, iežaset) når eieren er setningens subjekt ("Son borrá iežas njálgáid"). Bruk su/sudno/sin KUN når det viser til noen andre enn subjektet ("Son borrá su njálgáid"). Habitiv følger samme regel ("Mus lea alddán dállu", "Sudnos lea alddiska biila").
 5. LOHKU + SUBSTANTIIVA: Etter tallord over 1 (2, 3... samt moadde, máŋga, galle) skal substantivet stå i ENTALL GENITIV (f.eks. "guokte olbmo", "vihtta viesu"), mens verbet står i flertall ("Guokte olbmo bohte"). Tall fra 1 til 10 skrives med bokstaver i løpende tekst. I andre kasus enn nominativ/akkusativ/genitiv: Merk at i entall lokativ og illativ står tallordet/pronomenet i genitiv mens substantivet står i lokativ/illativ ("dan guovtti mánnái", "golmma mánás").
-6. -GO vs. JOS: Bruk ALDRI "jos" i indirekte spørresetninger som uttrykker usikkerhet ("Jeg vet ikke om han kommer"). Bruk partikkelen -go ("In dieđe boahtá go son odne"). "Jos" brukes kun i betingelsessetninger (jos ... de).
+6. -GO vs. JOS: Bruk ALDRI "jos" i indirekte spørresetninger som uttrykker usikkerhet ("Jeg vet ikke om han kommer"). Bruk partikkelen -go ("In dieđe boahtágo son odne"). "Jos" brukes kun i betingelsessetninger (jos ... de).
 7. DAHJE vs. VAI: Bruk "vai" i spørresetninger ("Boađátgo ihttin vai bearjadaga?") og "dahje" i fortellende setninger.
 8. EKTUI vs. HÁRRÁI/DÁFUS/ILLATIV: Unngå overbruk av "ektui" (som kun skal brukes ved ren sammenligning, f.eks. "Áhčis ektui son lea stuoris"). Bruk "hárrái", "dáfus" eller ren illativ ("Maid don dajat dien áššái?").
 9. GIELLASEAGUHEAPMI & NORSK PÅVIRKNING:
@@ -58,7 +58,7 @@ class ProofreadRequest(BaseModel):
     text: str
 
 def extract_gemini_json(raw_text: str) -> dict:
-    """Robust JSON-utpakker som håndterer markdown-kodeblokker, tanke-blokker og uescapede linjeskift fra Gemini 3.1."""
+    """Robust JSON-utpakker som håndterer markdown-kodeblokker, tenkeblokker og ueskaperte linjeskift fra Gemini."""
     if not raw_text:
         return {}
     cleaned = raw_text.strip()
@@ -314,7 +314,7 @@ def local_heuristic_checks(norwegian_text: str, sami_text: str) -> List[dict]:
     if re.search(r"\b(in|it|ii|ean|eahppi|eaba|eat|ehpet|eai)\s+dieđe\s+jos\b", sami_text, re.IGNORECASE):
         tips.append({
             "rule": "Partihkkal -go vs. konjunkšuvdna jos",
-            "message": "Unngå 'jos' etter 'in dieđe' i indirekte spørsmål. Bruk spørrepartikkelen '-go' på verbet (f.eks. 'In dieđe boahtá go son odne').",
+            "message": "Unngå 'jos' etter 'in dieđe' i indirekte spørsmål. Bruk spørrepartikkelen '-go' på verbet (f.eks. 'In dieđe boahtágo son odne').",
             "reference": "Giellagiehtagirji s. 18"
         })
     if re.search(r"\benngo\b", sami_text, re.IGNORECASE):
@@ -601,7 +601,7 @@ async def translate_pipeline(req: TranslateRequest):
         fixed_count = max(0, initial_err_count - len(final_errs))
         if fixed_count > 0:
             llm_result.setdefault("improvements", []).append(
-                f"Divvun slutt-kontroll: Rettet automatisk {fixed_count} av {initial_err_count} Divvun-merknader i sluttproduktet."
+                f"Divvun-sluttkontroll: Rettet automatisk {fixed_count} av {initial_err_count} Divvun-merknader i sluttproduktet."
             )
 
     final_local_tips = local_heuristic_checks(req.text, final_text)
@@ -722,7 +722,7 @@ async def translate_pipeline_stream(req: TranslateRequest):
             fixed_count = max(0, initial_err_count - len(final_errs))
             if fixed_count > 0:
                 llm_result.setdefault("improvements", []).append(
-                    f"Divvun slutt-kontroll: Rettet automatisk {fixed_count} av {initial_err_count} Divvun-merknader i sluttproduktet."
+                    f"Divvun-sluttkontroll: Rettet automatisk {fixed_count} av {initial_err_count} Divvun-merknader i sluttproduktet."
                 )
 
         final_local_tips = local_heuristic_checks(req.text, final_text)
