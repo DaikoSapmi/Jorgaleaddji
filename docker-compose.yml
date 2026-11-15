@@ -6,7 +6,8 @@ services:
       - "8090:8090"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.1-pro-preview}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-4-argon}
     env_file:
-      - .env
+      - path: .env
+        required: false
     restart: unless-stopped

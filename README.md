@@ -1,22 +1,39 @@
-# Jorgaleaddji & Divvun Studio (Gemini 3.1 Edition v9) – Mac Mini M1
+# Jorgaleaddji & Divvun Studio (Gemini 4 Edition)
 
-Et helhetlig oversettelses-, språkvask- og korrekturverktøy for nordsamisk (*davvisámegiella*), spesialtilpasset Docker på Apple Silicon (Mac Mini M1) og konfigurert på **port 8090**.
+Et helhetlig oversettelses-, språkvask- og korrekturverktøy for nordsamisk (*davvisámegiella*), tilpasset Docker (Apple Silicon / Linux) og konfigurert på **port 8090**.
 
-## Støttede arbeidsmåter:
-1. **Norsk &rarr; Davvisámegiella:** Oversettelse med TartuNLP, Divvun API og Gemini språkvask.
-2. **Svensk &rarr; Davvisámegiella:** Oversettelse fra svensk via TartuNLP, Divvun og Gemini språkvask.
-3. **Finsk &rarr; Davvisámegiella:** Oversettelse fra finsk via TartuNLP, Divvun og Gemini språkvask.
-4. **Engelsk &rarr; Davvisámegiella:** Oversettelse fra engelsk via TartuNLP og Gemini språkvask.
-5. **Nordsamisk &rarr; Davvisámegiella (Direkte språkvask & korrektur):** Språkvask av nordsamisk tekst som fikser skrivefeil, bøyinger, tegnsetting, verbspråk og stil i tråd med de offisielle normene.
+## Støttede arbeidsmåter
+1. **Norsk → Davvisámegiella:** Oversettelse med TartuNLP, UiT Divvun API og Gemini 4 språkvask.
+2. **Svensk → Davvisámegiella:** Oversettelse fra svensk med TartuNLP (med automatisk direkte-fallback til Gemini 4 ved behov) og Divvun.
+3. **Finsk → Davvisámegiella:** Oversettelse fra finsk med særskilt kontroll mot finske partisipp-/kasuskalker og falske venner.
+4. **Engelsk → Davvisámegiella:** Oversettelse fra engelsk med konvertering til samisk tegnsetting (`”...”`), tallnorm og aktiv verbstil.
+5. **Davvisámegiella → Davvisámegiella (Direkte språkvask & korrektur):** Skånsom, normtro språkvask av nordsamisk tekst som retter ortografi, stadieveksling, rekšuvdna, tegnsetting og substantivsyke uten å viske ut forfatterens stemme.
 
-## Språklig normgrunnlag for språkvask:
-Systemet følger de offisielle normene og anbefalingene for nordsamisk:
-1. **Sámediggi & Sámi Giellagáldu: Riektačállinrávvagat (reviderejuvvon 2019)** – Offisielle regler for tegnsetting (komma, anførselstegn, tankestrek, skråstrek), sammensatte ord og flerordsuttrykk (syntagmer), store/små forbokstaver (stillinger, nasjonaliteter, epoker), tall- og datobøyning, fremmedord og lånord, samt enklitiske partikler.
-2. **NRK Sámi Giellagiehtagirji** – Verbspråk mot substantivsyke, aktiv form mot unødvendig passiv, refleksivt *su* vs. *iežas*, spørrepartikkel *-go*, sammenligningsord *go* (ikke *enngo*), og kasusstyring.
-3. **UiT Giellatekno & Oahpa-grammatikken** – Morfologisk og syntaktisk presisjon samkjørt med Divvun API.
+## Nytt i Gemini 4 Edition
+- **Google GenAI SDK (`google-genai >= 3.2.0`) & Interactions API:** Støtter `gemini-4-argon` (standard), `gemini-4-carbon`, `gemini-4-hydrogen` (også på gratisnivå) og `gemini-3.5-flash-lite`, med valgbar tenkedybde (`low`, `medium`, `high`).
+- **Egen ordliste / terminologi & hurtigoppslag i Sátni.org:** Legg inn faste fagtermer (`kildeord = samisk term`) og slå opp markerte ord direkte i Giellagáldus termbase på [Sátni.org](https://satni.org).
+- **Endringsvisning (Diff) & samisk spesialtegn-rad:** Se nøyaktig hvilke ord som ble endret i språkvasken, og sett raskt inn `Á á Č č Đ đ Ŋ ŋ Š š Ŧ ŧ Ž ž ” –`.
+- **Raskt, selvstendig webgrensesnitt uten CDN-avhengigheter:** Ingen ekstern JS-kompilering ved oppstart, full tastatur- og skjermleserstøtte, avbryt-knapp (`AbortController`) og sikker nøkkelhåndtering via HTTP-headere.
 
-## Pipeline-trinn:
-1. *Klargjøring / TartuNLP Råutkast* (henter førsteutkast fra translate.ut.ee for norsk, svensk, finsk og engelsk; hoppes over ved samisk kildetekst)
-2. *Divvun 1. sjekk* (rettskriving og grammatikk via GiellaLT API)
-3. *Gemini Språkvask* (idiomatisk omskriving etter Riektačállinrávvagat og Giellagiehtagirji)
-4. *Divvun Sluttsjekk & Autoretting* (sikrer feilfri ortografi i sluttproduktet)
+## Språklig normgrunnlag
+1. **Sámediggi & Sámi Giellagáldu: Riektačállinrávvagat (reviderejuvvon 2019)** – Tegnsetting (`”...”`, komma, tankestrek `–`, skråstrek), sammensatte ord og flerordsuttrykk (*Min Áigi -aviisa*), store/små forbokstaver, tall- og datobøyning, fremmedord og laktapartihkkalat.
+2. **NRK Sámi Giellagiehtagirji** – Verbspråk mot substantivsyke, aktiv form fremfor unødvendig passiv, refleksivt *iežas* vs. *su*, spørrepartikkel *-go*, *vai* vs. *dahje*, og kasusstyring (rekšuvdna).
+3. **UiT Giellatekno & Divvun API** – Morfologisk og syntaktisk kontroll før og etter LLM-språkvask, med beskyttelse av egennavn.
+
+## Oppstart med Docker Compose
+
+```bash
+cp .env.example .env
+# Legg inn GEMINI_API_KEY i .env (eller legg den rett inn under Innstillinger i nettleseren)
+docker compose up -d --build
+```
+
+Åpne deretter `http://localhost:8090` i nettleseren.
+
+## Kjøre tester
+
+```bash
+docker compose exec sami-translator pytest
+# eller lokalt i et virtuelt miljø:
+pytest
+```

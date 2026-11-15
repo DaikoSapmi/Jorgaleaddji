@@ -1,311 +1,923 @@
+import asyncio
+import json
+import logging
 import os
 import re
-import json
-import httpx
-from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel
-from typing import List, Optional
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator, Dict, List, Literal, Optional, Tuple
 
-app = FastAPI(title="Dáro-Davvisámi Jorgaleaddji & Divvun (Gemini Edition v9)")
+import httpx
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from google import genai
+from pydantic import BaseModel, Field, field_validator
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("jorgaleaddji")
 
 TARTU_API_URL = "https://api.tartunlp.ai/translation/v2"
 DIVVUN_GRAMMAR_URL = "https://api-giellalt.uit.no/grammar/se"
-DIVVUN_SPELLER_URL = "https://api-giellalt.uit.no/speller/se"
+
+DEFAULT_GEMINI_MODEL = "gemini-4-argon"
+FAST_DIVVUN_PASS_MODEL = "gemini-4-hydrogen"
+PLACEHOLDER_KEY = "din_gemini_api_nokkel_her"
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL) or DEFAULT_GEMINI_MODEL
 
-SAMI_GUIDELINES_PROMPT = """
-Du er en ekspertoversetter og språkvasker fra norsk til nordsamisk (davvisámegiella), 
-opplært etter:
+DEPRECATED_MODEL_PREFIXES = ("gemini-2.5", "gemini-2.0", "gemini-1.5")
+NON_TEXT_MODEL_KEYWORDS = (
+    "tts",
+    "image",
+    "nano-banana",
+    "omni",
+    "embedding",
+    "transcribe",
+    "live",
+    "decision",
+    "imagen",
+    "veo",
+    "aqa",
+)
+
+DEFAULT_MODEL_CHOICES: List[Dict[str, str]] = [
+    {
+        "id": "gemini-4-argon",
+        "display_name": "Gemini 4 Argon (Anbefalt – presis & effektiv)",
+    },
+    {
+        "id": "gemini-4-carbon",
+        "display_name": "Gemini 4 Carbon (Maksimal resonneringsdybde)",
+    },
+    {
+        "id": "gemini-4-hydrogen",
+        "display_name": "Gemini 4 Hydrogen (Rask & støtter gratisnivå)",
+    },
+    {
+        "id": "gemini-3.5-flash-lite",
+        "display_name": "Gemini 3.5 Flash-Lite (Lynrask lettvekter)",
+    },
+]
+
+SOURCE_LANGUAGES: Dict[str, Dict[str, object]] = {
+    "nor": {
+        "label_no": "Norsk",
+        "source_heading": "NORSK KILDETEKST",
+        "tartu_candidates": ["nor", "nob"],
+        "step1_title": "Trinn 1 av 4: TartuNLP Norsk → Samisk",
+        "step1_detail": "Henter morfologisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)...",
+    },
+    "swe": {
+        "label_no": "Svensk",
+        "source_heading": "SVENSK KILDETEKST",
+        "tartu_candidates": ["swe", "sv"],
+        "step1_title": "Trinn 1 av 4: TartuNLP Svensk → Samisk",
+        "step1_detail": "Henter svensk-til-nordsamisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)...",
+    },
+    "fin": {
+        "label_no": "Finsk",
+        "source_heading": "FINSK KILDETEKST",
+        "tartu_candidates": ["fin", "fi"],
+        "step1_title": "Trinn 1 av 4: TartuNLP Finsk → Samisk",
+        "step1_detail": "Henter finsk-til-nordsamisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)...",
+    },
+    "eng": {
+        "label_no": "Engelsk",
+        "source_heading": "ENGELSK KILDETEKST",
+        "tartu_candidates": ["eng", "en"],
+        "step1_title": "Trinn 1 av 4: TartuNLP Engelsk → Samisk",
+        "step1_detail": "Henter engelsk-til-nordsamisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)...",
+    },
+    "sme": {
+        "label_no": "Nordsamisk",
+        "source_heading": "NORDSAMISK KILDETEKST",
+        "tartu_candidates": [],
+        "step1_title": "Trinn 1 av 4: Klargjør nordsamisk tekst",
+        "step1_detail": "Kildeteksten er allerede på nordsamisk – hopper over maskinoversettelse...",
+    },
+}
+
+LANG_ALIASES: Dict[str, str] = {
+    "no": "nor",
+    "nb": "nor",
+    "nob": "nor",
+    "nn": "nor",
+    "nno": "nor",
+    "nor": "nor",
+    "sv": "swe",
+    "swe": "swe",
+    "fi": "fin",
+    "fin": "fin",
+    "en": "eng",
+    "eng": "eng",
+    "se": "sme",
+    "sme": "sme",
+}
+
+VALID_IIJA_LOANWORD_SUFFIXES = (
+    "logiija",
+    "grafiija",
+    "sofiija",
+    "kratiija",
+    "nomiija",
+    "gogiija",
+    "triija",
+    "skopiija",
+)
+
+VALID_IIJA_LOANWORDS = {
+    "akademiija",
+    "allergiija",
+    "anatomiija",
+    "astronomiija",
+    "autonomiija",
+    "batteriija",
+    "biologiija",
+    "demokratiija",
+    "dramaturgiija",
+    "ekonomiija",
+    "energiija",
+    "epidemiija",
+    "fantasiija",
+    "filosofiija",
+    "galleriija",
+    "garantiija",
+    "geografiija",
+    "harmoniija",
+    "historiija",
+    "ideologiija",
+    "industriija",
+    "ironiija",
+    "kategorija",
+    "kategoriija",
+    "kemiija",
+    "kirurgiija",
+    "koloniija",
+    "liturgiija",
+    "lotteriija",
+    "melodiija",
+    "metallurgiija",
+    "metodologiija",
+    "pandemiija",
+    "pedagogiija",
+    "poesiija",
+    "politiija",
+    "politologiija",
+    "psykologiija",
+    "sosiologiija",
+    "strategiija",
+    "symfoniija",
+    "teknologiija",
+    "teologiija",
+    "teoriija",
+    "terapiija",
+}
+
+CORE_SAMI_NORMS_PROMPT = """
+Du arbeider etter de offisielle normene for nordsamisk (davvisámegiella):
 - Sámediggi & Sámi Giellagáldu: Riektačállinrávvagat (reviderejuvvon 2019)
 - NRK Sámi Giellagiehtagirji
 - UiT Giellatekno og Oahpa-grammatikken
 
-Når du reviderer og oversetter teksten, MÅ du følge disse reglene og rettskrivingsnormene nøye:
+Følg disse normene konsekvent:
 
-1. FULLSTENDIGHET:
-   Du MÅ oversette ALLE avsnitt, sitater og overskrifter i den norske kildeteksten. Ikke hopp over et eneste avsnitt eller en setning!
+1. FULLSTENDIGHET OG AVSNITTSSTRUKTUR:
+   Ta med ALLE avsnitt, overskrifter, sitater, tall og fakta fra kildeteksten. Behold nøyaktig samme avsnittsinndeling – ikke slå sammen eller utelat avsnitt.
 
-2. VEARBAGIELLA (Verbspråk mot substantivsyke):
-   Unngå norsk substantivsyke! Gjør tunge norske substantivuttrykk om til samiske verb og verbavledninger (-goahtit, -stit, -lit, -hit, -ut, -nit, -odit, -muvvat).
-   Eks: "Statsforvalteren har gitt fellingstillatelse på bjørn" -> "Stáhtahálddašeaddji lea addán lobi báhčit guovžža" eller "lea suovvan báhčit guovžža".
+2. VEARBAGIELLA (Verbspråk fremfor substantivsyke):
+   Bruk aktive samiske verb og naturlige verbavledninger (-goahtit, -stit, -lit, -hit, -ut, -nit, -odit, -muvvat) fremfor tunge substantivuttrykk.
+   Eks.: "Statsforvalteren har gitt fellingstillatelse på bjørn" → "Stáhtahálddašeaddji lea addán lobi báhčit guovžža" eller "lea suovvan báhčit guovžža".
 
 3. AKTIIVA GIELLA (Aktivt språk):
-   Hvis en passiv setning med -(oj)uvvot nevner hvem som utfører handlingen (subjekt/agent), MÅ setningen skrives om til aktiv ("Ášši meannuduvvui suohkanstivrras" -> "Suohkanstivra meannudii ášši").
-   Passiv med -hallat brukes kun når noe er uheldig for den som rammes, med agenten i illativ ("Áhkku vuojáhalai boastabiilii").
+   Hvis en passiv setning på -(oj)uvvot nevner hvem som utfører handlingen (agens), SKAL setningen snus til aktiv ("Ášši meannuduvvui suohkanstivrras" → "Suohkanstivra meannudii ášši").
+   Passiv med -hallat brukes kun når handlingen er uheldig for den som rammes, med agens i illativ ("Áhkku vuojáhalai boastabiilii").
 
 4. SU vs. IEŽAS (Refleksivt pronomen):
    Bruk refleksivt pronomen (iežan, iežat, iežas, iežame, iežade, iežaska, iežamet, iežadet, iežaset) når eieren er setningens subjekt ("Son borrá iežas njálgáid").
    Bruk su/sudno/sin KUN når det viser til noen andre enn subjektet ("Son borrá su njálgáid"). Habitiv følger samme regel ("Mus lea alddán dállu", "Sudnos lea alddiska biila").
 
 5. LOHKU + SUBSTANTIIVA & LOGUID SOJAHEAPMI (Tallord og tallbøying):
-   - Etter tallord over 1 (2, 3... samt moadde, máŋga, galle) skal substantivet stå i ENTALL GENITIV (f.eks. "guokte olbmo", "vihtta viesu"), mens verbet står i flertall ("Guokte olbmo bohte").
-   - I andre kasus: Merk at i entall lokativ og illativ står tallordet i genitiv mens substantivet står i lokativ/illativ ("dan guovtti mánnái", "golmma mánás").
+   - Etter tallord over 1 (2, 3... samt moadde, máŋga, galle) står substantivet i ENTALL GENITIV ("guokte olbmo", "vihtta viesu"), mens verbet står i flertall ("Guokte olbmo bohte").
+   - I entall lokativ og illativ står tallordet i genitiv mens substantivet står i lokativ/illativ ("dan guovtti mánnái", "golmma mánás").
    - Tall fra 1 til 10 skrives med bokstaver i løpende tekst ("ovtta", "guokte", "golbma"...).
    - Tall under 1 million skrives i ETT ord med bokstaver ("čiežalogigolbma", "guoktečuođi", "vihttaduhát"), over 1 mill. i to ord ("logi miljovnna").
-   - Bøying av tall med kolon (uten mellomrom): "16:i" (illativ), "16:s" (lokativ), "16:in" (komitativ), "16:t" (nominativ flertall).
+   - Tall med sifre bøyes med kolon uten mellomrom: "16:i" (illativ), "16:s" (lokativ), "16:in" (komitativ), "16:t" (nominativ flertall).
    - Ordenstall bøyes med -da/-dii/-dis: "16." (nominativ), "16:da" (gen/akk), "16:dii" (illativ), "16:dis" (lokativ).
-   - Prosent og måleenheter: Alltid mellomrom foran prosenttegn og forkortelser ("25 %", "10 kg", "50 km"). I løpende tekst skrives "proseantamearri" (aldri "%-mearri").
+   - Alltid mellomrom før prosenttegn og måleenheter ("25 %", "3,5 %", "10 kg", "50 km"). I løpende tekst skrives "proseantamearri" (aldri "%-mearri").
 
-6. GOALLOSSÁNIT & SÁTNEGIHPUT (Sammensatte ord ifølge Riektačállinrávvagat 2019):
+6. GOALLOSSÁNIT & SÁTNEGIHPUT (Sammensatte ord, Riektačállinrávvagat 2019):
    - Skrives i ett ord når forleddet er nominativ entall ("gilvoviehkan", "lávllagirji", "bohccobiergu").
-   - Bindestrek brukes når et ledd er navn, tall, bokstav, forkortelse eller fremmedord ("Elle-oambealli", "1950-lohku", "25-jahkásaš", "C-vitamiidna", "e-boasta", "ON-beaivi").
+   - Bindestrek ved navn, tall, bokstav, forkortelse eller fremmedord ("Elle-oambealli", "1950-lohku", "25-jahkásaš", "C-vitamiidna", "e-boasta", "ON-beaivi").
    - MELLOMROM FORAN BINDESTREK ved flerords forledd (syntagme): "Min Áigi -aviisa", "New Yorka -mátki", "Boeing 737 -girdi", "Paulus Utsi -áššedovdi". (Men "Ánne-Máret-muoŧŧá").
    - Felles ledd: "mánáid- ja nuoraidskuvla", "sáme-, suoma- ja ruoŧagiella".
    - Retnings- og stedsord: "duogábealde", "vuolábeallai" (ett ord ved sammensetningsform), men "Eanodaga bealde", "dán beallai", "Ruošša beale" (to ord ved genitiv).
 
 7. GASKAMEARKKAT & TEGNSETTING (Riektačállinrávvagat 2019):
    - Komma (Rihkku):
-     * Alltid komma etter leddsetning (oalgecealkka) når den står først ("Go áhčči boahtá, de mii herskkostallat", "Jos mii eat livčče vuolgán, de...").
+     * Alltid komma etter foranstilt leddsetning ("Go áhčči boahtá, de mii herskkostallat", "Jos mii eat livčče vuolgán, de...").
      * Komma foran "muhto" ("Son livččii viššal, muhto sus ii leat dilli").
      * Komma ved apposisjoner og presiseringer ("Iŋgá, ovddit jagiid vuoiti, bođii...").
      * ALDRI komma mellom setningsledd med felles subjekt eller verbal ("Elle finai vuos buvddas ja de manai ruoktot").
      * ALDRI komma i helt korte leddsetninger ("Dat vulggii go mun bohten").
-   - Sitattegn (Aisttonmearkkat): Bruk alltid typografiske nordsamiske/nordiske sitattegn ”...” (ikke engelske “...”). Sitat i sitat bruker apostrof ’...’.
-   - Tankestrek (Jurddasáhcu –): Bruk tankestrek uten mellomrom ved avstand, tidsintervall og sidetall ("1995–1997", "Romsa–Ivgubahta 120 km", "siidduin 25–100").
+   - Sitattegn (Aisttonmearkkat): Bruk alltid nordsamiske typografiske sitattegn ”...” (U+201D både ved start og slutt – ikke engelske “...” og ikke norske «...»). Sitat i sitat bruker ’...’.
+   - Tankestrek (Jurddasáhcu –): Uten mellomrom ved intervaller og strekninger ("1995–1997", "Romsa–Ivgubahta 120 km", "siidduin 25–100").
    - Skråstrek (/): Betyr "dahje" (eller), ALDRI "ja" ("mánát/nuorat" = mánát dahje nuorat).
 
-8. STUORA JA UNNA ÁLGORBUSTÁVAT (Store og små forbokstaver):
-   - Liten forbokstav (unna álgobustávva):
-     * Stillinger og titler: "direktevra Hætta", "stáhtaministtar", "presideanta", "advokáhtta", "gonagas Harald", "sátnejođiheaddji".
-     * Nasjonaliteter, folkeslag, språk: "sápmelaččat", "davvisámegiella", "norgalaš", "suopmelaš".
-     * Ukedager, måneder, høytider: "bearjadat", "guovvamánnu", "beassážat".
-     * Historiske hendelser og epoker: "eváhkkodálvi", "nubbi máilmmisoahti", "ruovdeáigi".
-     * Etter kolon når det ikke følger en fullstendig selvstendig setning ("njeallje ivnni: alit, ruoksat, fiskat ja ruoná").
-   - Stor forbokstav (stuora álgobustávva):
-     * Egennavn på personer, institusjoner, kommuner og organisasjoner ("Sámediggi", "Sámi allaskuvla", "Kárášjoga gielda", "Ráđđehus").
-     * Etter kolon ved fullstendig direkte tale eller replikk ("Oahpaheaddji álggahii: ”Dál dii lehpet álgán nuoraidskuvlii!”").
+8. STUORA JA UNNA ÁLGOBUSTÁVAT (Store og små forbokstaver):
+   - Liten forbokstav på stillinger og titler ("direktevra Hætta", "stáhtaministtar", "presideanta", "gonagas Harald", "sátnejođiheaddji"), nasjonaliteter/folkeslag/språk ("sápmelaččat", "davvisámegiella"), ukedager/måneder/høytider ("bearjadat", "guovvamánnu", "beassážat") og historiske hendelser/epoker ("eváhkkodálvi", "nubbi máilmmisoahti").
+   - Liten forbokstav etter kolon når det ikke følger en fullstendig selvstendig setning; stor forbokstav ved fullstendig direkte replikk etter kolon.
+   - Stor forbokstav på egennavn på personer, institusjoner, kommuner og organisasjoner ("Sámediggi", "Sámi allaskuvla", "Kárášjoga gielda").
 
 9. VIERISSÁNIT & EARÁ GIELAID NAMAID SOJAHEAPMI (Fremmedord og navn):
-   - Utenlandske personnavn skrives slik bæreren skriver dem, og bøyes med samiske endelser:
-     * Navn på -a/-i beholder vokalen: "Klara : Klaras : Klarai", "Sari : Saris : Sarii".
-     * Énstavelsesnavn bøyes med -a-: "Per : Pera : Perii/Perai : Peras", "Liv : Liva : Livii : Livas".
-     * Navn på konsonant: "Astrid : Astrida : Astridii", "Øivind : Øivinda : Øivindii".
+   - Utenlandske personnavn skrives slik bæreren skriver dem, og bøyes med samiske endelser ("Klara : Klaras : Klarai", "Per : Pera : Perii : Peras", "Astrid : Astrida : Astridii").
    - Fremmedord på -iija ("filosofiija", "biologiija", "energiija") har INGEN stadieveksling ("filosofiijas", "energiijain").
-   - Stedsnavn ender ALDRI på -iija ("Tansania", "Italia", ikke Tansaniija).
-   - Unngå norsk binde-s i sammensetninger ("eksámenbargu", ikke eksamensbargu).
+   - Stedsnavn ender ALDRI på -iija ("Tansania", "Italia", "Spania" – aldri Tansaniija).
+   - Unngå fremmed binde-s i sammensetninger ("eksámenbargu", ikke eksamensbargu).
 
 10. LAKTAPARTIHKKALAT (Enklitiske partikler):
-    - Faste leksemer MÅ skrives i ett ord: "dieđusge", "dattetge", "iešguhtege", "oktage", "veaháge", "veahášge", "makkárge", "mannege", "matge", "miige", "mihkkege", "movtge", "goitge", "almmatge", "juogo", "jusgo".
+    - Faste leksemer skrives i ett ord: "dieđusge", "dattetge", "iešguhtege", "oktage", "veaháge", "veahášge", "makkárge", "matge", "miige", "mihkkege", "movtge", "goitge", "almmatge", "juogo", "jusgo".
     - Spørrepartikkelen -go henger fast på verbet ("Boahtágo son odne?").
-    - Konjunksjonen "go" (når, da, som, enn) skrives ALLTID frittstående ("Ánte lea boarráseabbo go Risten").
-    - Bruk ALDRI "jos" i indirekte spørsmål ("In dieđe boahtágo son odne", ikke "jos").
+    - Konjunksjonen "go" skrives frittstående ("Ánte lea boarráseabbo go Risten", aldri "enngo").
+    - Bruk ALDRI "jos" i indirekte spørsmål ("In dieđe boahtágo son odne", aldri "jos").
 
 11. SPØRREORD & KONJUNKSJONER (Dahje vs. Vai):
     - Bruk "vai" i spørresetninger ("Boađátgo ihttin vai bearjadaga?").
     - Bruk "dahje" i fortellende setninger.
 
 12. EKTUI vs. HÁRRÁI / DÁFUS / ILLATIV:
-    - "Ektui" brukes kun ved reell sammenligning ("Áhčis ektui son lea stuoris"). Bruk "hárrái", "dáfus" eller ren illativ ("Maid don dajat dien áššái?").
+    - "Ektui" brukes kun ved reell sammenligning ("Áhčis ektui son lea stuoris"). Ellers brukes "hárrái", "dáfus" eller ren illativ ("Maid don dajat dien áššái?").
 
 13. REKŠUVDNAVEARBBAT (Kasusstyring):
     - Illativ: liikot, luohttit, álgit, guoskat, heivet, suhttat, darvánit.
     - Lokativ: beroštit, ballat, heaitit, dolkat, váruhit, nohkkot.
     - Komitativ: humadit, háleštit.
 
-14. RIEKTAČÁLLIN & DATO:
-    - Dato skrives med måned i genitiv + ordenstall + beaivvi ("geassemánu 7. beaivvi 2026" eller "geassemánu 7. b. 2026").
-"""
+14. DATO:
+    - Måned i genitiv + ordenstall + beaivvi ("geassemánu 7. beaivvi 2026" eller "geassemánu 7. b. 2026").
+""".strip()
+
+SOURCE_SPECIFIC_GUIDANCE: Dict[str, str] = {
+    "nor": (
+        "Du er en ekspertoversetter og språkvasker fra norsk (bokmål/nynorsk) til nordsamisk (davvisámegiella). "
+        "Vær spesielt oppmerksom på å løse opp norsk substantivsyke, preposisjonsuttrykk ('i forhold til', 'i forbindelse med'), "
+        "norske passivsetninger med 'av', binde-s i sammensetninger og 'om' i indirekte spørsmål."
+    ),
+    "swe": (
+        "Du er en ekspertoversetter og språkvasker fra svensk til nordsamisk (davvisámegiella). "
+        "Vær spesielt oppmerksom på å løse opp svensk substantivsyke, s-passiv ('behandlades av') der agens er kjent, "
+        "svenske sammensetningsfoger og indirekte spørsmål med 'om'."
+    ),
+    "fin": (
+        "Du er en ekspertoversetter og språkvasker fra finsk til nordsamisk (davvisámegiella). "
+        "Selv om finsk og samisk er beslektede språk, må du unngå mekaniske finske partisippkalker, feil kasusstyring (finsk elativ/inessiv/partitiv vs. samisk lokativ/illativ/akkusativ) "
+        "og falske venner (f.eks. 'hallitus' = 'ráđđehus' for regjering vs. 'stivra' for styre; 'toimittaa' etter kontekst). Skriv naturlig, idiomatisk nordsamisk."
+    ),
+    "eng": (
+        "Du er en ekspertoversetter og språkvasker fra engelsk til nordsamisk (davvisámegiella). "
+        "Unngå kalkering av engelske '-ing'-konstruksjoner og passiv med 'by'. Konverter desimalpunktum til samisk/nordisk desimalkomma (f.eks. '3.5%' → '3,5 %'), "
+        "bruk liten forbokstav på titler, ukedager, måneder og nasjonaliteter, og bytt engelske anførselstegn “...” til samiske ”...”."
+    ),
+    "sme": (
+        "Du er en ekspertspråkvasker og korrekturleser i nordsamisk (davvisámegiella). "
+        "Kildeteksten er allerede skrevet på nordsamisk. Bevar skribentens egen stemme, stil og ordvalg der samisken allerede er god, "
+        "men rett alle skrive-, bøyings-, stadievekslings-, rekšuvdna- og tegnsettingsfeil, og løs opp tydelige skandinaviske/finske kalker skånsomt."
+    ),
+}
+
+
+def parse_glossary(raw_glossary: Optional[str]) -> List[Tuple[str, str]]:
+    """Tolker brukerens ordliste ('kilde = samisk', 'kilde -> samisk' eller 'kilde : samisk')."""
+    if not raw_glossary or not raw_glossary.strip():
+        return []
+    entries: List[Tuple[str, str]] = []
+    for line in raw_glossary.splitlines()[:100]:
+        cleaned = line.strip()
+        if not cleaned or cleaned.startswith("#"):
+            continue
+        for sep in ("->", "→", "=", ":"):
+            if sep in cleaned:
+                left, right = cleaned.split(sep, 1)
+                src_term, tgt_term = left.strip(), right.strip()
+                if src_term and tgt_term:
+                    entries.append((src_term, tgt_term))
+                break
+    return entries
+
+
+def build_system_instruction(
+    source_lang: str = "nor",
+    glossary: Optional[str] = None,
+) -> str:
+    role_intro = SOURCE_SPECIFIC_GUIDANCE.get(source_lang, SOURCE_SPECIFIC_GUIDANCE["nor"])
+    parts = [role_intro, "", CORE_SAMI_NORMS_PROMPT]
+    glossary_entries = parse_glossary(glossary)
+    if glossary_entries:
+        formatted_terms = "\n".join(f"- {src} → {tgt}" for src, tgt in glossary_entries)
+        parts.extend([
+            "",
+            "15. OBLIGATORISK TERMINOLOGI / ORDLISTE:",
+            "Bruk konsekvent følgende normerte samiske termer (bøyd i riktig kasus etter setningen) når disse begrepene forekommer:",
+            formatted_terms,
+        ])
+    return "\n".join(parts)
+
+
+class RefinementSchema(BaseModel):
+    final_translation: str = Field(
+        description="Den fullstendige, ferdige nordsamiske teksten med alle avsnitt bevart."
+    )
+    improvements: List[str] = Field(
+        description="Liste med korte punkter på norsk som forklarer de viktigste språklige forbedringene."
+    )
+
+
+class DivvunFixSchema(BaseModel):
+    corrected_text: str = Field(
+        description="Den korrigerte nordsamiske teksten der reelle Divvun-merknader er rettet."
+    )
+
 
 class TranslateRequest(BaseModel):
-    text: str
-    source_lang: str = "nor"  # "nor", "eng", eller "sme"
+    text: str = Field(..., min_length=1, max_length=50_000)
+    source_lang: str = Field(default="nor")
     use_llm: bool = True
     auto_apply_divvun: bool = True
-    api_key: Optional[str] = None
-    model: Optional[str] = None
+    api_key: Optional[str] = Field(default=None, max_length=256)
+    model: Optional[str] = Field(default=None, max_length=128)
+    thinking_level: Literal["low", "medium", "high"] = "medium"
+    glossary: Optional[str] = Field(default=None, max_length=10_000)
+
+    @field_validator("source_lang")
+    @classmethod
+    def validate_source_lang(cls, v: str) -> str:
+        norm = (v or "nor").strip().lower()
+        if norm not in LANG_ALIASES:
+            raise ValueError(f"Ugyldig kildespråk '{v}'. Støttede språk: nor, swe, fin, eng, sme.")
+        return LANG_ALIASES[norm]
+
 
 class ProofreadRequest(BaseModel):
-    text: str
+    text: str = Field(..., min_length=1, max_length=50_000)
+
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    timeout = httpx.Timeout(45.0, connect=10.0)
+    limits = httpx.Limits(max_connections=20, max_keepalive_connections=10)
+    async with httpx.AsyncClient(timeout=timeout, limits=limits) as http_client:
+        app_instance.state.http_client = http_client
+        yield
+
+
+app = FastAPI(
+    title="Jorgaleaddji & Divvun Studio (Gemini 4 Edition)",
+    lifespan=lifespan,
+)
+
+
+def sanitize_error_message(raw_msg: str, secret_key: str = "") -> str:
+    """Fjerner eventuelle API-nøkler og URL-hemmeligheter fra feilmeldinger før visning/logging."""
+    if not raw_msg:
+        return "Ukjent feil"
+    cleaned = str(raw_msg)
+    if secret_key and len(secret_key) >= 6:
+        cleaned = cleaned.replace(secret_key, "[SKJULT_NØKKEL]")
+    cleaned = re.sub(r"AIza[0-9A-Za-z_\-]{10,}", "[SKJULT_NØKKEL]", cleaned)
+    cleaned = re.sub(r"([?&](?:api_)?key=)[^&\s'\"]+", r"\1[SKJULT]", cleaned, flags=re.IGNORECASE)
+    return cleaned[:280]
+
+
+def normalize_gemini_model(model: Optional[str]) -> Tuple[str, Optional[str]]:
+    """Erstatter avviklede Gemini 1.5/2.0/2.5-modeller med gemini-4-hydrogen."""
+    candidate = (model or GEMINI_MODEL or DEFAULT_GEMINI_MODEL).strip()
+    if not candidate:
+        candidate = DEFAULT_GEMINI_MODEL
+    lower = candidate.lower()
+    if any(lower.startswith(prefix) for prefix in DEPRECATED_MODEL_PREFIXES):
+        note = (
+            f"Merk: '{candidate}' er avviklet og ble automatisk erstattet med 'gemini-4-hydrogen'."
+        )
+        return "gemini-4-hydrogen", note
+    return candidate, None
+
 
 def extract_gemini_json(raw_text: str) -> dict:
-    """Robust JSON-utpakker som håndterer markdown-kodeblokker, tenkeblokker og ueskaperte linjeskift fra Gemini."""
+    """Robust JSON-utpakker som ekstra sikring dersom et svar inneholder kodeblokker eller småfeil."""
     if not raw_text:
         return {}
     cleaned = raw_text.strip()
-    # Fjern evt. ```json ... ``` rundt svaret
     cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s*```$", "", cleaned)
     cleaned = cleaned.strip()
 
-    # Forsøk 1: Direkte json.loads
     try:
-        return json.loads(cleaned)
+        data = json.loads(cleaned)
+        if isinstance(data, dict):
+            return data
     except Exception:
         pass
 
-    # Forsøk 2: Finn ytterste { ... } i teksten
     start_idx = cleaned.find("{")
     end_idx = cleaned.rfind("}")
     if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-        candidate = cleaned[start_idx:end_idx + 1]
+        candidate = cleaned[start_idx : end_idx + 1]
         try:
-            return json.loads(candidate)
+            data = json.loads(candidate)
+            if isinstance(data, dict):
+                return data
         except Exception:
             pass
 
-    # Forsøk 3: Regex-uthenting av "final_translation" og "improvements" hvis JSON har rå linjeskift eller småfeil
     ft_match = re.search(
         r'"final_translation"\s*:\s*"((?:[^"\\]|\\.)*)"',
         cleaned,
-        flags=re.DOTALL
+        flags=re.DOTALL,
     )
     if ft_match:
         raw_ft = ft_match.group(1)
         try:
             ft_val = json.loads(f'"{raw_ft}"')
         except Exception:
-            ft_val = raw_ft.replace("\\n", "\n").replace('\"', '"')
+            ft_val = raw_ft.replace("\\n", "\n").replace('\\"', '"')
 
-        imps = []
+        imps: List[str] = []
         imp_block = re.search(r'"improvements"\s*:\s*\[(.*?)\]', cleaned, flags=re.DOTALL)
         if imp_block:
             for m in re.finditer(r'"((?:[^"\\]|\\.)*)"', imp_block.group(1), flags=re.DOTALL):
                 try:
                     imps.append(json.loads(f'"{m.group(1)}"'))
                 except Exception:
-                    imps.append(m.group(1).replace('\"', '"'))
+                    imps.append(m.group(1).replace('\\"', '"'))
         return {"final_translation": ft_val, "improvements": imps}
 
     return {}
 
-async def fetch_available_gemini_models(api_key: str) -> List[dict]:
-    if not api_key or api_key == "din_gemini_api_nokkel_her":
+
+def extract_interaction_text(interaction: object) -> str:
+    """Henter tekstsvar fra et Interactions API-objekt (via output_text eller model_output-steps)."""
+    out_text = getattr(interaction, "output_text", None)
+    if isinstance(out_text, str) and out_text.strip():
+        return out_text
+
+    steps = getattr(interaction, "steps", None) or []
+    collected: List[str] = []
+    for step in steps:
+        if getattr(step, "type", None) == "model_output":
+            for block in getattr(step, "content", None) or []:
+                txt = getattr(block, "text", None)
+                if isinstance(txt, str) and txt:
+                    collected.append(txt)
+    return "".join(collected)
+
+
+def is_supported_text_model(model_id: str) -> bool:
+    lower = model_id.lower()
+    if not (lower.startswith("gemini-") or lower.startswith("gemma-4-")):
+        return False
+    if any(lower.startswith(prefix) for prefix in DEPRECATED_MODEL_PREFIXES):
+        return False
+    if any(kw in lower for kw in NON_TEXT_MODEL_KEYWORDS):
+        return False
+    return True
+
+
+async def fetch_available_gemini_models(api_key: str) -> List[Dict[str, str]]:
+    active_key = (api_key or "").strip()
+    if not active_key or active_key == PLACEHOLDER_KEY:
         return []
-    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        try:
-            resp = await client.get(url)
-            if resp.status_code == 200:
-                models = resp.json().get("models", [])
-                valid = []
-                for m in models:
-                    methods = m.get("supportedGenerationMethods", [])
-                    name = m.get("name", "").replace("models/", "")
-                    if "generateContent" in methods and name.startswith("gemini-") and "tts" not in name and "image" not in name and "embedding" not in name:
-                        valid.append({
-                            "id": name,
-                            "display_name": m.get("displayName", name)
-                        })
-                valid.sort(key=lambda x: x["id"], reverse=True)
-                return valid
-        except Exception:
-            pass
-    return []
+
+    try:
+        client = genai.Client(api_key=active_key, http_options={"timeout": 15_000})
+        discovered: Dict[str, str] = {}
+        pager = await client.aio.models.list()
+        async for m in pager:
+            raw_name = getattr(m, "name", "") or ""
+            model_id = raw_name.replace("models/", "").strip()
+            if not model_id or not is_supported_text_model(model_id):
+                continue
+            display_name = getattr(m, "display_name", None) or model_id
+            discovered[model_id] = display_name
+
+        if not discovered:
+            return list(DEFAULT_MODEL_CHOICES)
+
+        priority_order = [c["id"] for c in DEFAULT_MODEL_CHOICES]
+        default_labels = {c["id"]: c["display_name"] for c in DEFAULT_MODEL_CHOICES}
+        ordered: List[Dict[str, str]] = []
+
+        for pid in priority_order:
+            if pid in discovered:
+                ordered.append({"id": pid, "display_name": default_labels[pid]})
+                discovered.pop(pid, None)
+
+        for mid in sorted(discovered.keys(), reverse=True):
+            ordered.append({"id": mid, "display_name": discovered[mid]})
+
+        return ordered
+    except Exception as exc:
+        logger.warning("Kunne ikke hente modelliste fra Gemini API: %s", sanitize_error_message(str(exc), active_key))
+        return list(DEFAULT_MODEL_CHOICES)
+
+
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok"}
+
 
 @app.get("/api/config")
-async def get_config(api_key: Optional[str] = None):
-    active_key = (api_key or GEMINI_API_KEY).strip()
-    has_key = bool(active_key and active_key != "din_gemini_api_nokkel_her")
+async def get_config(
+    x_gemini_api_key: Optional[str] = Header(default=None, alias="X-Gemini-Api-Key"),
+):
+    active_key = (x_gemini_api_key or GEMINI_API_KEY).strip()
+    has_key = bool(active_key and active_key != PLACEHOLDER_KEY)
+    normalized_env_model, _ = normalize_gemini_model(GEMINI_MODEL)
     available_models = await fetch_available_gemini_models(active_key) if has_key else []
     return {
-        "env_model": GEMINI_MODEL,
-        "has_env_key": bool(GEMINI_API_KEY and GEMINI_API_KEY != "din_gemini_api_nokkel_her"),
-        "available_models": available_models
+        "env_model": normalized_env_model,
+        "has_env_key": bool(GEMINI_API_KEY and GEMINI_API_KEY != PLACEHOLDER_KEY),
+        "available_models": available_models,
+        "default_models": DEFAULT_MODEL_CHOICES,
     }
 
-async def call_tartu_mt(text: str, src: str = "nor", tgt: str = "sme") -> str:
-    """Trinn 1: Kaller TartuNLP (translate.ut.ee) avsnitt for avsnitt så lange tekster bevarer struktur."""
-    paragraphs = text.split("\n")
-    translated_paragraphs = []
-    if src in ["swe", "sv"]:
-        src_candidates = ["swe", "sv"]
-    elif src in ["fin", "fi"]:
-        src_candidates = ["fin", "fi"]
-    elif src in ["eng", "en"]:
-        src_candidates = ["eng", "en"]
+
+@asynccontextmanager
+async def borrow_http_client() -> AsyncGenerator[httpx.AsyncClient, None]:
+    shared: Optional[httpx.AsyncClient] = getattr(app.state, "http_client", None)
+    if shared is not None and not shared.is_closed:
+        yield shared
     else:
-        src_candidates = [src, "nob", "no"]
-    async with httpx.AsyncClient(timeout=45.0) as client:
-        # Prøv først hele teksten i ett kall hvis den ikke er for lang
-        if len(text) < 4500:
-            for src_code in src_candidates:
-                try:
-                    resp = await client.post(
-                        TARTU_API_URL,
-                        json={"text": text, "src": src_code, "tgt": tgt}
-                    )
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        if "result" in data and data["result"]:
-                            return data["result"]
-                except Exception:
-                    continue
-        # Fallback for veldig lange tekster: del opp
-        for p in paragraphs:
-            if not p.strip():
-                translated_paragraphs.append("")
-                continue
-            done = False
-            for src_code in src_candidates:
-                try:
-                    resp = await client.post(
-                        TARTU_API_URL,
-                        json={"text": p, "src": src_code, "tgt": tgt}
-                    )
-                    if resp.status_code == 200 and resp.json().get("result"):
-                        translated_paragraphs.append(resp.json()["result"])
-                        done = True
-                        break
-                except Exception:
-                    continue
-            if not done:
-                translated_paragraphs.append(p)
-    return "\n".join(translated_paragraphs) if translated_paragraphs else ""
+        async with httpx.AsyncClient(timeout=httpx.Timeout(45.0, connect=10.0)) as temp_client:
+            yield temp_client
+
+
+async def _tartu_translate_chunk(
+    client: httpx.AsyncClient,
+    chunk: str,
+    src_candidates: List[str],
+    tgt: str,
+) -> Tuple[Optional[str], bool]:
+    """Returnerer (oversatt_tekst_eller_None, språkpar_avvist_permanent)."""
+    saw_bad_pair = False
+    for src_code in src_candidates:
+        try:
+            resp = await client.post(
+                TARTU_API_URL,
+                json={"text": chunk, "src": src_code, "tgt": tgt},
+                timeout=45.0,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                result = data.get("result")
+                if isinstance(result, str) and result.strip():
+                    return result, False
+            elif resp.status_code in (400, 404, 422):
+                saw_bad_pair = True
+        except Exception as exc:
+            logger.warning("TartuNLP feil for src=%s: %s", src_code, exc)
+            continue
+    return None, saw_bad_pair
+
+
+async def call_tartu_mt(text: str, src: str = "nor", tgt: str = "sme") -> Optional[str]:
+    """
+    Trinn 1: Kaller TartuNLP (translate.ut.ee).
+    Returnerer None dersom TartuNLP ikke støtter språkparet eller ikke svarer,
+    slik at uoversatt kildetekst ALDRI sendes videre til samisk stavekontroll.
+    """
+    lang_cfg = SOURCE_LANGUAGES.get(src, SOURCE_LANGUAGES["nor"])
+    src_candidates = list(lang_cfg.get("tartu_candidates") or ["nor", "nob"])
+    if not src_candidates or not text.strip():
+        return None
+
+    async with borrow_http_client() as client:
+        if len(text) < 4000:
+            whole_res, rejected = await _tartu_translate_chunk(client, text, src_candidates, tgt)
+            if whole_res is not None:
+                return whole_res
+            if rejected:
+                logger.info("TartuNLP støtter ikke språkparet %s -> %s; hopper til Gemini.", src, tgt)
+                return None
+
+        paragraphs = text.split("\n")
+        non_empty_indices = [i for i, p in enumerate(paragraphs) if p.strip()]
+        if not non_empty_indices:
+            return None
+
+        # Test første avsnitt først for å unngå N unødvendige kall hvis tjenesten/språkparet er nede
+        first_idx = non_empty_indices[0]
+        first_res, first_rejected = await _tartu_translate_chunk(
+            client, paragraphs[first_idx], src_candidates, tgt
+        )
+        if first_res is None and (first_rejected or len(non_empty_indices) == 1):
+            return None
+
+        semaphore = asyncio.Semaphore(4)
+        results_by_index: Dict[int, Optional[str]] = {first_idx: first_res}
+
+        async def translate_idx(idx: int) -> None:
+            async with semaphore:
+                res, _ = await _tartu_translate_chunk(client, paragraphs[idx], src_candidates, tgt)
+                results_by_index[idx] = res
+
+        if len(non_empty_indices) > 1:
+            await asyncio.gather(*(translate_idx(i) for i in non_empty_indices[1:]))
+
+        succeeded = sum(1 for v in results_by_index.values() if v is not None)
+        if succeeded == 0:
+            return None
+
+        assembled: List[str] = []
+        for idx, orig_p in enumerate(paragraphs):
+            if not orig_p.strip():
+                assembled.append("")
+            elif results_by_index.get(idx) is not None:
+                assembled.append(results_by_index[idx] or "")
+            else:
+                # Hvis et enkeltavsnitt feilet i en ellers vellykket lang tekst, behold kilden tydelig merket for Gemini
+                assembled.append(orig_p)
+        return "\n".join(assembled)
+
 
 async def call_divvun_grammar(text: str) -> dict:
-    """Trinn 2: Kaller Divvun GiellaLT API for grammatikk- og stavekontroll."""
-    if not text.strip():
+    """Trinn 2 / 4: Kaller Divvun GiellaLT API for nordsamisk grammatikk- og stavekontroll."""
+    if not text or not text.strip():
         return {"text": text, "errs": []}
-    async with httpx.AsyncClient(timeout=35.0) as client:
+    async with borrow_http_client() as client:
         try:
             resp = await client.post(
                 DIVVUN_GRAMMAR_URL,
                 json={"text": text},
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json"},
+                timeout=35.0,
             )
             if resp.status_code == 200:
                 return resp.json()
-        except Exception as e:
-            return {"text": text, "errs": [], "api_error": str(e)}
+            logger.warning("Divvun API svarte med HTTP %s", resp.status_code)
+        except Exception as exc:
+            logger.warning("Divvun API nettverksfeil: %s", exc)
+            return {"text": text, "errs": [], "api_error": str(exc)}
     return {"text": text, "errs": []}
 
 
-def apply_divvun_suggestions_smart(text: str, errs: list, protect_proper_nouns: bool = True) -> str:
-    """Bruker Divvuns forslag automatisk, men beskytter ukjente egennavn (f.eks. 'Warth') mot å bli byttet ut med tilfeldige ord."""
-    if not errs:
+def _extract_capitalized_source_stems(source_text: str) -> set:
+    if not source_text:
+        return set()
+    tokens = re.findall(r"\b[A-ZÁČĐŊŠŦŽÆØÅÄÖ][\w\-]{1,}\b", source_text)
+    return set(tokens)
+
+
+def _matches_source_proper_noun(word: str, source_cap_words: set) -> bool:
+    if not source_cap_words or not word:
+        return False
+    if word in source_cap_words:
+        return True
+    # Sjekk også samiske kasusendelser lagt på utenlandske egennavn (f.eks. Warth -> Wartha / Warthii / Warthas)
+    for cap in source_cap_words:
+        if len(cap) >= 3 and word.startswith(cap) and len(word) - len(cap) <= 4:
+            return True
+    return False
+
+
+def _is_sentence_initial(text: str, start: int) -> bool:
+    """Sjekker om posisjon `start` er starten på en ny setning (hopper over mellomrom og åpningsanførselstegn)."""
+    if start <= 0:
+        return True
+    prefix = text[:start].rstrip(" \t\r”\"“«»'‘’‚([—–-")
+    if not prefix:
+        return True
+    return prefix[-1] in ".!?\n:"
+
+
+def apply_divvun_suggestions(
+    text: str,
+    errs: list,
+    protect_proper_nouns: bool = True,
+    source_text: str = "",
+) -> str:
+    """
+    Bruker Divvuns beste forslag bakfra uten å ødelegge:
+    - overlappende feilintervaller,
+    - egennavn midt i en setning, eller
+    - egennavn fra kildeteksten (selv først i en setning),
+    samtidig som reelle skrivefeil i starten av nye setninger blir rettet.
+    """
+    if not text or not errs:
         return text
-    sorted_errs = sorted(errs, key=lambda x: x.get("start_index", 0), reverse=True)
+
+    source_cap_words = _extract_capitalized_source_stems(source_text) if protect_proper_nouns else set()
+
+    valid_errs = [
+        e
+        for e in errs
+        if isinstance(e.get("start_index"), int)
+        and isinstance(e.get("end_index"), int)
+        and e.get("suggestions")
+    ]
+    sorted_errs = sorted(
+        valid_errs,
+        key=lambda x: (x["start_index"], x["end_index"]),
+        reverse=True,
+    )
+
     corrected = text
+    min_touched_start = len(text) + 1
+
     for err in sorted_errs:
-        suggestions = err.get("suggestions", [])
-        start = err.get("start_index")
-        end = err.get("end_index")
-        err_word = err.get("error_text", "")
-        err_code = err.get("error_code", "")
-        if not suggestions or start is None or end is None:
+        suggestions = err.get("suggestions") or []
+        start = err["start_index"]
+        end = err["end_index"]
+        err_word = err.get("error_text") or ""
+        err_code = err.get("error_code") or ""
+
+        if not suggestions or start < 0 or end > len(text) or start >= end:
             continue
-        # Hvis det er en ren stavefeil ("typo") på et ord med stor forbokstav midt i en setning (ofte et norsk etternavn/fornavn),
-        # sjekk at vi ikke blindt bytter ut navnet med et helt annet samisk ord.
-        if protect_proper_nouns and err_code == "typo" and err_word[:1].isupper() and start > 0 and text[start-1:start] not in [".", "!", "?", "\n"]:
+        # Hopp over overlappende intervaller slik at vi aldri klipper i allerede endret tekst
+        if end > min_touched_start:
             continue
+
+        actual_slice = text[start:end]
+        if err_word and actual_slice != err_word:
+            continue
+
+        if protect_proper_nouns and err_code == "typo" and actual_slice[:1].isupper():
+            sentence_start = _is_sentence_initial(text, start)
+            in_source_names = _matches_source_proper_noun(actual_slice, source_cap_words)
+            if (not sentence_start) or in_source_names:
+                continue
+
         corrected = corrected[:start] + suggestions[0] + corrected[end:]
+        min_touched_start = start
+
     return corrected
 
+
+# Bakoverkompatibelt alias
+apply_divvun_suggestions_smart = apply_divvun_suggestions
+
+
+def _is_valid_iija_loanword(word: str) -> bool:
+    # Fjern evt. vanlige kasussuffikser hvis regex traff grunnformen
+    low = word.lower()
+    if low in VALID_IIJA_LOANWORDS:
+        return True
+    return any(low.endswith(sfx) for sfx in VALID_IIJA_LOANWORD_SUFFIXES)
+
+
+def local_heuristic_checks(source_text: str, sami_text: str) -> List[dict]:
+    """Lokal regelsjekker basert på Riektačállinrávvagat (2019), NRK Sámi Giellagiehtagirji og kilde-samsvar."""
+    if not sami_text or not sami_text.strip():
+        return []
+
+    tips: List[dict] = []
+
+    if re.search(r"\b(in|it|ii|ean|eahppi|eaba|eat|ehpet|eai)\s+dieđe\s+jos\b", sami_text, re.IGNORECASE):
+        tips.append({
+            "rule": "Partihkkal -go vs. konjunkšuvdna jos",
+            "message": "Unngå 'jos' etter 'in dieđe' i indirekte spørsmål. Bruk spørrepartikkelen '-go' på verbet (f.eks. 'In dieđe boahtágo son odne').",
+            "reference": "Giellagiehtagirji s. 18 / Riektačállinrávvagat s. 70",
+        })
+
+    if re.search(r"\benngo\b", sami_text, re.IGNORECASE):
+        tips.append({
+            "rule": "Konjunkšuvdna go",
+            "message": "Unngå blandingsordet 'enngo'. Bruk kun 'go' ved sammenligning (f.eks. 'buoret go dát').",
+            "reference": "Giellagiehtagirji s. 19 / Riektačállinrávvagat s. 70",
+        })
+
+    # Sjekk 'dahje' kun inne i faktiske spørresetninger (som slutter med '?')
+    sentences = re.split(r"(?<=[.!?])\s+|\n+", sami_text)
+    if any(s.rstrip(" ”\"')").endswith("?") and re.search(r"\bdahje\b", s, re.IGNORECASE) for s in sentences):
+        tips.append({
+            "rule": "Dahje vs. Vai",
+            "message": "I spørresetninger skal man bruke 'vai' i stedet for 'dahje' (f.eks. 'Boađátgo ihttin vai bearjadaga?').",
+            "reference": "Giellagiehtagirji s. 22 / Riektačállinrávvagat s. 32",
+        })
+
+    if re.search(r"\bektui\b", sami_text, re.IGNORECASE):
+        tips.append({
+            "rule": "Ektui vs. hárrái / dáfus / illativ",
+            "message": "Sjekk om 'ektui' brukes til reell sammenligning. Ofte passer 'hárrái', 'dáfus' eller ren illativ bedre.",
+            "reference": "Giellagiehtagirji s. 22",
+        })
+
+    if re.search(r"\b(gávnnahii|gávnnahit|gávnnahan)\s+olggos\b", sami_text, re.IGNORECASE):
+        tips.append({
+            "rule": "Norsk påvirkning (olggos)",
+            "message": "På samisk sier man bare 'gávnnahii' (fant ut), uten 'olggos'.",
+            "reference": "Giellagiehtagirji s. 9",
+        })
+
+    if re.search(r"\bolggosoaidnit\b", sami_text, re.IGNORECASE):
+        tips.append({
+            "rule": "Norsk påvirkning (olggosoaidnit)",
+            "message": "Unngå 'olggosoaidnit' (se ut). Bruk bare 'oaidnit' ('Makkár dat lea oaidnit?').",
+            "reference": "Giellagiehtagirji s. 9 & 16",
+        })
+
+    if re.search(r"\w+(juvvon|juvvui|juvvo|juvvojit)\b", sami_text, re.IGNORECASE):
+        tips.append({
+            "rule": "Aktiiva giella (Passiv → Aktiv)",
+            "message": "Teksten inneholder et passivt verb på -(oj)uvvot. Sjekk om den som utfører handlingen er nevnt – i så fall bør setningen snus til aktiv.",
+            "reference": "Giellagiehtagirji s. 15 / Ordavledning s. 2",
+        })
+
+    if re.search(
+        r"\b(dieđus|dattet|iešguhte|okta|veahá|veaháš|makkár|mihkke|movt|goit|almmat)\s+ge\b",
+        sami_text,
+        re.IGNORECASE,
+    ):
+        tips.append({
+            "rule": "Laktapartihkkalat (sammenskriving)",
+            "message": "Faste partikkelord skal skrives i ett ord: 'dieđusge', 'dattetge', 'iešguhtege', 'oktage', 'veaháge', 'mihkkege', 'goitge', 'almmatge'.",
+            "reference": "Riektačállinrávvagat s. 71",
+        })
+
+    if re.search(r"\b\d+(?:[.,]\d+)?%", sami_text):
+        tips.append({
+            "rule": "Proseantamearka (gaska)",
+            "message": "Det skal være mellomrom mellom tallet og prosenttegnet (f.eks. '25 %', ikke '25%').",
+            "reference": "Riektačállinrávvagat s. 41",
+        })
+
+    if re.search(r"-(mearri|mearre)\b", sami_text, re.IGNORECASE) and "%-" in sami_text:
+        tips.append({
+            "rule": "Proseantamearri vs. %-mearri",
+            "message": "Skriv 'proseantamearri' med bokstaver, ikke '%-mearri'.",
+            "reference": "Riektačállinrávvagat s. 41",
+        })
+
+    iija_candidates = re.findall(r"\b[A-ZÁČĐŊŠŦŽ][a-záčđŋšŧž]+iija\b", sami_text)
+    invalid_iija = [w for w in iija_candidates if not _is_valid_iija_loanword(w)]
+    if invalid_iija:
+        examples = ", ".join(dict.fromkeys(invalid_iija))
+        tips.append({
+            "rule": "Báikenamat eai noga -iija",
+            "message": f"Stedsnavn ender aldri på '-iija' på samisk (fant: {examples}). Skriv f.eks. 'Tansania', 'Italia', 'Spania'.",
+            "reference": "Riektačállinrávvagat s. 43",
+        })
+
+    # Varsle KUN ved engelske åpningsanførselstegn “ (U+201C), tyske „ (U+201E) eller norske vinkeltegn «» – ALDRI ved gyldig samisk ” (U+201D)!
+    if re.search(r"[“„«»]", sami_text):
+        tips.append({
+            "rule": "Aisttonmearkkat (Sitattegn)",
+            "message": "På nordsamisk brukes typografiske sitattegn ”...” (U+201D før og etter sitatet), ikke engelske “...” eller norske «...».",
+            "reference": "Riektačállinrávvagat s. 24",
+        })
+
+    # Kilde-samsvar: avsnitt og årstall
+    if source_text and source_text.strip():
+        src_paras = [p.strip() for p in source_text.splitlines() if p.strip()]
+        tgt_paras = [p.strip() for p in sami_text.splitlines() if p.strip()]
+        if len(src_paras) >= 2 and len(tgt_paras) < len(src_paras):
+            tips.append({
+                "rule": "Avsnittsstruktur (Fullstendighet)",
+                "message": f"Kildeteksten har {len(src_paras)} avsnitt, mens den samiske teksten har {len(tgt_paras)} avsnitt. Kontroller at ingen avsnitt er utelatt eller slått sammen.",
+                "reference": "Kvalitetskontroll",
+            })
+
+        src_years = set(re.findall(r"\b(?:1[89]\d{2}|20\d{2})\b", source_text))
+        missing_years = sorted(y for y in src_years if y not in sami_text)
+        if missing_years:
+            tips.append({
+                "rule": "Årstall fra kildeteksten",
+                "message": f"Årstall i kildeteksten som ikke ble funnet som sifre i målteksten: {', '.join(missing_years)}.",
+                "reference": "Kvalitetskontroll",
+            })
+
+    return tips
+
+
+def _classify_gemini_exception(exc: Exception) -> Tuple[Optional[int], bool]:
+    """Returnerer (status_code_hvis_kjent, bør_prøve_neste_modell)."""
+    code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    if isinstance(code, int):
+        if code in (403, 404, 429, 503):
+            return code, True
+        if code in (400, 401):
+            return code, False
+    msg = str(exc)
+    for sc in (400, 401, 403, 404, 429, 503):
+        if f" {sc} " in msg or f"({sc})" in msg or msg.startswith(str(sc)):
+            return sc, sc in (403, 404, 429, 503)
+    return None, False
+
+
 async def call_gemini_final_divvun_pass(
-    norwegian_text: str,
+    source_text: str,
     gemini_draft: str,
     divvun_errs: list,
     override_key: Optional[str] = None,
     override_model: Optional[str] = None,
-    source_lang: str = "nor"
+    source_lang: str = "nor",
+    glossary: Optional[str] = None,
 ) -> Optional[str]:
-    """Hvis Divvun finner merknader i Geminis tekst, ber vi Gemini rette akkurat disse Divvun-merknadene."""
+    """Trinn 4: Lar en rask Gemini 4-modell rette konkrete Divvun-merknader intelligent uten å ødelegge syntaks eller egennavn."""
     active_key = (override_key or GEMINI_API_KEY).strip()
-    if not active_key or not divvun_errs:
+    if not active_key or active_key == PLACEHOLDER_KEY or not divvun_errs:
         return None
 
     compact_errs = [
@@ -313,201 +925,91 @@ async def call_gemini_final_divvun_pass(
             "error_text": e.get("error_text"),
             "title": e.get("title"),
             "description": e.get("description"),
-            "suggestions": (e.get("suggestions") or [])[:5]
+            "suggestions": (e.get("suggestions") or [])[:5],
         }
-        for e in divvun_errs
+        for e in divvun_errs[:35]
     ]
 
-    source_heading_map = {
-        "sme": "NORDSAMISK KILDE",
-        "eng": "ENGELSK KILDE",
-        "swe": "SVENSK KILDE",
-        "fin": "FINSK KILDE",
-        "nor": "NORSK KILDE"
-    }
-    source_heading = source_heading_map.get(source_lang, "NORSK KILDE")
+    lang_cfg = SOURCE_LANGUAGES.get(source_lang, SOURCE_LANGUAGES["nor"])
+    source_heading = str(lang_cfg["source_heading"])
+
     prompt = f"""Her er den nordsamiske teksten du bearbeider, sammen med merknader fra UiT Divvun grammatikk- og stavekontroll.
 
 {source_heading}:
-{norwegian_text}
+{source_text}
 
 DIN NORDSAMISKE TEKST:
 {gemini_draft}
 
-MERKNADER FRA DIVVUN SOM MÅ FIKSES:
+MERKNADER FRA DIVVUN SOM SKAL VURDERES OG FIKSES:
 {json.dumps(compact_errs, ensure_ascii=False)}
 
 Oppgave:
-Rett opp alle reelle stave-, bøyings-, stadievekslings-, kasus- og tegnsettingsfeil som Divvun har påpekt, så godt det lar seg gjøre, uten å ødelegge personnavn (som f.eks. norske etternavn) eller den gode samiske setningsoppbyggingen.
-Returner KUN JSON med nøkkelen "corrected_text".
-"""
-    model_to_use = "gemini-3.1-flash-preview"
-    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_to_use}:generateContent?key={active_key}"
-    payload = {
-        "systemInstruction": {"parts": [{"text": SAMI_GUIDELINES_PROMPT}]},
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.1,
-            "responseMimeType": "application/json",
-            "responseSchema": {
-                "type": "OBJECT",
-                "properties": {
-                    "corrected_text": {"type": "STRING"}
-                },
-                "required": ["corrected_text"]
-            }
-        }
-    }
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        for cand in [model_to_use, (override_model or GEMINI_MODEL).strip(), "gemini-2.5-flash"]:
+Rett opp alle reelle stave-, bøyings-, stadievekslings-, kasus- og tegnsettingsfeil som Divvun har påpekt, uten å ødelegge personnavn, fagtermer eller den gode samiske setningsoppbyggingen og avsnittsstrukturen.
+Returner svaret som JSON med nøkkelen "corrected_text"."""
+
+    normalized_override, _ = normalize_gemini_model(override_model)
+    candidates = list(
+        dict.fromkeys([FAST_DIVVUN_PASS_MODEL, normalized_override, "gemini-3.5-flash-lite"])
+    )
+    system_instruction = build_system_instruction(source_lang=source_lang, glossary=glossary)
+
+    try:
+        client = genai.Client(api_key=active_key, http_options={"timeout": 60_000})
+        for cand in candidates:
             try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{cand}:generateContent?key={active_key}"
-                resp = await client.post(url, headers={"Content-Type": "application/json"}, json=payload)
-                if resp.status_code == 200:
-                    parts = resp.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
-                    for p in reversed(parts):
-                        if not p.get("thought", False) and p.get("text"):
-                            parsed = json.loads(p["text"])
-                            if parsed.get("corrected_text"):
-                                return parsed["corrected_text"]
-            except Exception:
+                interaction = await client.aio.interactions.create(
+                    model=cand,
+                    system_instruction=system_instruction,
+                    input=prompt,
+                    response_format={
+                        "type": "text",
+                        "mime_type": "application/json",
+                        "schema": DivvunFixSchema.model_json_schema(),
+                    },
+                    generation_config={
+                        "thinking_level": "low",
+                        "max_output_tokens": 32768,
+                    },
+                )
+                raw_json = extract_interaction_text(interaction)
+                if not raw_json:
+                    continue
+                try:
+                    parsed_obj = DivvunFixSchema.model_validate_json(raw_json)
+                    if parsed_obj.corrected_text.strip():
+                        return parsed_obj.corrected_text
+                except Exception:
+                    fallback_dict = extract_gemini_json(raw_json)
+                    corrected = fallback_dict.get("corrected_text")
+                    if isinstance(corrected, str) and corrected.strip():
+                        return corrected
+            except Exception as exc:
+                logger.warning(
+                    "Divvun-sluttpass med %s feilet: %s",
+                    cand,
+                    sanitize_error_message(str(exc), active_key),
+                )
                 continue
+    except Exception as exc:
+        logger.warning("Kunne ikke opprette Gemini-klient i sluttpass: %s", sanitize_error_message(str(exc), active_key))
     return None
 
-def apply_divvun_suggestions(text: str, errs: list) -> str:
-    """Bruker Divvuns beste forslag automatisk (bakfra så indekser ikke forskyves)."""
-    if not errs:
-        return text
-    sorted_errs = sorted(errs, key=lambda x: x.get("start_index", 0), reverse=True)
-    corrected = text
-    for err in sorted_errs:
-        suggestions = err.get("suggestions", [])
-        start = err.get("start_index")
-        end = err.get("end_index")
-        if suggestions and start is not None and end is not None:
-            corrected = corrected[:start] + suggestions[0] + corrected[end:]
-    return corrected
 
-def local_heuristic_checks(norwegian_text: str, sami_text: str) -> List[dict]:
-    """Lokal regelsjekker basert på Sámi Giellagáldu Riektačállinrávvagat (2019) og NRK Sámi Giellagiehtagirji."""
-    tips = []
-    
-    if re.search(r"\b(in|it|ii|ean|eahppi|eaba|eat|ehpet|eai)\s+dieđe\s+jos\b", sami_text, re.IGNORECASE):
-        tips.append({
-            "rule": "Partihkkal -go vs. konjunkšuvdna jos",
-            "message": "Unngå 'jos' etter 'in dieđe' i indirekte spørsmål. Bruk spørrepartikkelen '-go' på verbet (f.eks. 'In dieđe boahtágo son odne').",
-            "reference": "Giellagiehtagirji s. 18 / Riektačállinrávvagat s. 70"
-        })
-    if re.search(r"\benngo\b", sami_text, re.IGNORECASE):
-        tips.append({
-            "rule": "Konjunkšuvdna go",
-            "message": "Unngå blandingsordet 'enngo'. Bruk kun 'go' ved sammenligning (f.eks. 'buoret go dát').",
-            "reference": "Giellagiehtagirji s. 19 / Riektačállinrávvagat s. 70"
-        })
-    if "?" in sami_text and re.search(r"\bdahje\b", sami_text, re.IGNORECASE):
-        tips.append({
-            "rule": "Dahje vs. Vai",
-            "message": "I spørresetninger skal man bruke 'vai' i stedet for 'dahje' (f.eks. 'Boađátgo ihttin vai bearjadaga?').",
-            "reference": "Giellagiehtagirji s. 22 / Riektačállinrávvagat s. 32"
-        })
-    if re.search(r"\bektui\b", sami_text, re.IGNORECASE):
-        tips.append({
-            "rule": "Ektui vs. hárrái / dáfus / illativ",
-            "message": "Sjekk om 'ektui' brukes til reell sammenligning. Ofte passer 'hárrái', 'dáfus' eller ren illativ bedre.",
-            "reference": "Giellagiehtagirji s. 22"
-        })
-    if re.search(r"\b(gávnnahii|gávnnahit|gávnnahan)\s+olggos\b", sami_text, re.IGNORECASE):
-        tips.append({
-            "rule": "Norsk påvirkning (olggos)",
-            "message": "På samisk sier man bare 'gávnnahii' (fant ut), uten 'olggos'.",
-            "reference": "Giellagiehtagirji s. 9"
-        })
-    if re.search(r"\bolggosoaidnit\b", sami_text, re.IGNORECASE):
-        tips.append({
-            "rule": "Norsk påvirkning (olggosoaidnit)",
-            "message": "Unngå 'olggosoaidnit' (se ut). Bruk bare 'oaidnit' ('Makkár dat lea oaidnit?').",
-            "reference": "Giellagiehtagirji s. 9 & 16"
-        })
-    if re.search(r"\w+(juvvon|juvvui|juvvo|juvvojit)\b", sami_text, re.IGNORECASE):
-        tips.append({
-            "rule": "Aktiiva giella (Passiv -> Aktiv)",
-            "message": "Teksten inneholder et passivt verb på -(oj)uvvot. Sjekk om den som utfører handlingen er nevnt – i så fall bør setningen snus til aktiv!",
-            "reference": "Giellagiehtagirji s. 15 / Ordavledning s. 2"
-        })
-    # Sjekkpunkter fra Sámi Giellagáldu Riektačállinrávvagat (2019)
-    if re.search(r"\b(dieđus|dattet|iešguhte|okta|veahá|veaháš|makkár|manne|masa|mihkke|movt|goit)\s+ge\b", sami_text, re.IGNORECASE):
-        tips.append({
-            "rule": "Laktapartihkkalat (sammenskriving)",
-            "message": "Faste partikkelord skal skrives i ett ord: 'dieđusge', 'dattetge', 'iešguhtege', 'oktage', 'veaháge', 'mihkkege', 'goitge'.",
-            "reference": "Riektačállinrávvagat s. 71"
-        })
-    if re.search(r"\b\d+%", sami_text):
-        tips.append({
-            "rule": "Proseantamearka (gaska)",
-            "message": "Det skal være et mellomrom mellom tallet og prosenttegnet (f.eks. '25 %', ikke '25%'). I løpende tekst skrives 'proseantamearri' (ikke '%-mearri').",
-            "reference": "Riektačállinrávvagat s. 41"
-        })
-    if re.search(r"\b%-(mearri|mearre)\b", sami_text, re.IGNORECASE):
-        tips.append({
-            "rule": "Proseantamearri vs. %-mearri",
-            "message": "Skriv 'proseantamearri' med bokstaver, ikke '%-mearri'.",
-            "reference": "Riektačállinrávvagat s. 41"
-        })
-    if re.search(r"\b[A-ZÁČĐŊŠŦŽ][a-záčđŋšŧž]+iija\b", sami_text):
-        tips.append({
-            "rule": "Báikenamat eai lohpa -iija",
-            "message": "Stedsnavn ender aldri på '-iija' på samisk. Skriv f.eks. 'Tansania', 'Italia', 'Spania' (ikke Tansaniija).",
-            "reference": "Riektačállinrávvagat s. 43"
-        })
-    if re.search(r"[“”]", sami_text):
-        tips.append({
-            "rule": "Aisttonmearkkat (Sitattegn)",
-            "message": "På samisk brukes typografiske sitattegn ”...” (som i norsk), ikke engelske “...”.",
-            "reference": "Riektačállinrávvagat s. 24"
-        })
-    return tips
-
-async def call_gemini_refiner(
-    norwegian_text: str,
-    tartu_draft: str,
-    divvun_corrected: str,
-    divvun_errs: list,
+def _build_refiner_user_prompt(
+    source_text: str,
+    tartu_draft: Optional[str],
+    divvun_corrected: Optional[str],
+    compact_errs: list,
     local_tips: list,
-    override_key: Optional[str] = None,
-    override_model: Optional[str] = None,
-    source_lang: str = "nor"
-) -> dict:
-    """Trinn 3: Foredler oversettelsen eller språkvasker nordsamisk tekst ved hjelp av Google Gemini API."""
-    active_key = (override_key or GEMINI_API_KEY).strip()
-    requested_model = (override_model or GEMINI_MODEL).strip() or "gemini-3.1-pro-preview"
-
-    if not active_key or active_key == "din_gemini_api_nokkel_her":
-        return {
-            "final_translation": divvun_corrected or tartu_draft,
-            "improvements": [
-                "GEMINI_API_KEY er ikke lagt inn ennå (legg den i .env eller i innstillingene i grensesnittet). Viser tekst korrigert av Divvun API."
-            ],
-            "llm_active": False,
-            "used_model": None
-        }
-
-    # Begrens antall Divvun-feil vi sender inn i prompten så den ikke blir unødig stor på lange artikler
-    compact_errs = [
-        {
-            "error_text": e.get("error_text"),
-            "title": e.get("title"),
-            "suggestions": (e.get("suggestions") or [])[:3]
-        }
-        for e in divvun_errs[:40]
-    ]
-
+    source_lang: str,
+) -> str:
     if source_lang == "sme":
-        user_prompt = f"""
-NORDSAMISK KILDETEKST SOM SKAL SPRÅKVASKES OG KORRIGERES:
-{norwegian_text}
+        return f"""NORDSAMISK KILDETEKST SOM SKAL SPRÅKVASKES OG KORRIGERES:
+{source_text}
 
 UTKAST ETTER FØRSTE DIVVUN-KORREKTUR:
-{divvun_corrected}
+{divvun_corrected or source_text}
 
 DIVVUN FEILRAPPORT (utvalg):
 {json.dumps(compact_errs, ensure_ascii=False)}
@@ -516,294 +1018,390 @@ AUTOMATISKE SPRÅKVARSLER (Giellagiehtagirji & Riektačállinrávvagat):
 {json.dumps(local_tips, ensure_ascii=False)}
 
 Oppgave:
-1. Gjennomfør en grundig språkvask og korrektur av den nordsamiske kildeteksten. Rett alle skrivefeil, bøyingsfeil, tegnsettingsfeil og grammatiske svakheter i henhold til normene fra Sámi Giellagáldu (Riektačállinrávvagat 2019), NRK Sámi Giellagiehtagirji og UiT Giellatekno/Oahpa.
-2. Forbedre setningsoppbyggingen: snu passiv til aktiv der agenten er nevnt, motvirk substantivsyke med naturlige verbavledninger, og kontroller korrekt bruk av iežas vs. su, partikkelen -go, tallord og sammensetninger.
-3. Bevar tekstenes opprinnelige mening, stil og innhold fullstendig – ikke utelat avsnitt og ikke legg til nytt faktuelt innhold.
-4. Returner svaret som gyldig JSON med nøklene "final_translation" (den ferdig vaskede teksten) og "improvements" (korte punkter på norsk som forklarer de viktigste språklige forbedringene).
-"""
-    elif source_lang == "swe":
-        user_prompt = f"""
-SVENSK KILDE (ALLE avsnitt og sitater skal oversettes til nordsamisk):
-{norwegian_text}
+1. Gjennomfør en grundig, men skånsom språkvask og korrektur av den nordsamiske kildeteksten i tråd med Riektačállinrávvagat (2019), NRK Sámi Giellagiehtagirji og UiT Giellatekno/Oahpa.
+2. Forbedre setningsoppbyggingen der det trengs: snu passiv til aktiv når agens er kjent, bruk naturlige verbavledninger fremfor substantivsyke, og kontroller iežas vs. su, partikkelen -go, tallbøying, sammensatte ord og typografiske sitattegn ”...”.
+3. Bevar tekstens opprinnelige mening, tone og eksakte avsnittsinndeling – ikke utelat avsnitt og ikke legg til nytt innhold.
+4. Returner gyldig JSON med nøklene "final_translation" og "improvements" (korte punkter på norsk)."""
 
-RÅOVERSETTELSE FRA TARTUNLP (Svensk -> Nordsamisk):
+    lang_cfg = SOURCE_LANGUAGES.get(source_lang, SOURCE_LANGUAGES["nor"])
+    lang_label = str(lang_cfg["label_no"]).lower()
+    source_heading = str(lang_cfg["source_heading"])
+
+    if tartu_draft:
+        draft_section = f"""RÅOVERSETTELSE FRA TARTUNLP ({lang_cfg['label_no']} → Nordsamisk):
 {tartu_draft}
 
-ETTER DIVVUN KORREKTUR:
-{divvun_corrected}
+ETTER FØRSTE DIVVUN-KORREKTUR:
+{divvun_corrected or tartu_draft}
 
 DIVVUN FEILRAPPORT (utvalg):
 {json.dumps(compact_errs, ensure_ascii=False)}
 
 AUTOMATISKE SPRÅKVARSLER:
-{json.dumps(local_tips, ensure_ascii=False)}
-
-Oppgave:
-1. Lag en optimal, naturlig og idiomatisk nordsamisk oversettelse av HELE den svenske kildeteksten (pass nøye på at absolutt alle avsnitt og sitater blir med!).
-2. Bruk TartuNLP- og Divvun-utkastet som hjelp, men skriv om der det er nødvendig for å unngå ord-for-ord-oversettelse, passiv-syke eller substantivsyke. Følg normene fra Sámi Giellagáldu (Riektačállinrávvagat 2019) og NRK Sámi Giellagiehtagirji.
-3. Returner svaret som gyldig JSON med nøklene "final_translation" og "improvements".
-"""
-    elif source_lang == "fin":
-        user_prompt = f"""
-FINSK KILDE (ALLE avsnitt og sitater skal oversettes til nordsamisk):
-{norwegian_text}
-
-RÅOVERSETTELSE FRA TARTUNLP (Finsk -> Nordsamisk):
-{tartu_draft}
-
-ETTER DIVVUN KORREKTUR:
-{divvun_corrected}
-
-DIVVUN FEILRAPPORT (utvalg):
-{json.dumps(compact_errs, ensure_ascii=False)}
-
-AUTOMATISKE SPRÅKVARSLER:
-{json.dumps(local_tips, ensure_ascii=False)}
-
-Oppgave:
-1. Lag en optimal, naturlig og idiomatisk nordsamisk oversettelse av HELE den finske kildeteksten (pass nøye på at absolutt alle avsnitt og sitater blir med!).
-2. Bruk TartuNLP- og Divvun-utkastet som hjelp, men skriv om der det er nødvendig for å unngå ord-for-ord-oversettelse, passiv-syke eller substantivsyke. Følg normene fra Sámi Giellagáldu (Riektačállinrávvagat 2019) og NRK Sámi Giellagiehtagirji.
-3. Returner svaret som gyldig JSON med nøklene "final_translation" og "improvements".
-"""
-    elif source_lang == "eng":
-        user_prompt = f"""
-ENGELSK KILDE (ALLE avsnitt og sitater skal oversettes til nordsamisk):
-{norwegian_text}
-
-RÅOVERSETTELSE FRA TARTUNLP (Engelsk -> Nordsamisk):
-{tartu_draft}
-
-ETTER DIVVUN KORREKTUR:
-{divvun_corrected}
-
-DIVVUN FEILRAPPORT (utvalg):
-{json.dumps(compact_errs, ensure_ascii=False)}
-
-AUTOMATISKE SPRÅKVARSLER:
-{json.dumps(local_tips, ensure_ascii=False)}
-
-Oppgave:
-1. Lag en optimal, naturlig og idiomatisk nordsamisk oversettelse av HELE den engelske kildeteksten (pass nøye på at absolutt alle avsnitt og sitater blir med!).
-2. Bruk TartuNLP- og Divvun-utkastet som hjelp, men skriv om der det er nødvendig for å unngå ord-for-ord-oversettelse, passiv-syke eller substantivsyke. Følg normene fra Sámi Giellagáldu (Riektačállinrávvagat 2019) og NRK Sámi Giellagiehtagirji.
-3. Returner svaret som gyldig JSON med nøklene "final_translation" og "improvements".
-"""
+{json.dumps(local_tips, ensure_ascii=False)}"""
+        draft_hint = (
+            "Bruk TartuNLP- og Divvun-utkastet som morfologisk hjelp der det treffer godt, "
+            "men skriv fritt om til naturlig, idiomatisk nordsamisk for å unngå ord-for-ord-oversettelse, passivsyke og substantivsyke."
+        )
     else:
-        user_prompt = f"""
-NORSK KILDE (ALLE avsnitt og sitater skal med i oversettelsen):
-{norwegian_text}
+        draft_section = (
+            "MERK: Maskinoversettelse fra TartuNLP var ikke tilgjengelig for denne teksten. "
+            "Oversett direkte fra kildeteksten til idiomatisk nordsamisk."
+        )
+        draft_hint = (
+            "Oversett direkte til naturlig, idiomatisk nordsamisk uten kalkering av kildespråkets syntaks."
+        )
 
-RÅOVERSETTELSE FRA TARTUNLP:
-{tartu_draft}
+    return f"""{source_heading} (ALLE avsnitt, overskrifter og sitater skal oversettes til nordsamisk):
+{source_text}
 
-ETTER DIVVUN KORREKTUR:
-{divvun_corrected}
-
-DIVVUN FEILRAPPORT (utvalg):
-{json.dumps(compact_errs, ensure_ascii=False)}
-
-AUTOMATISKE SPRÅKVARSLER:
-{json.dumps(local_tips, ensure_ascii=False)}
+{draft_section}
 
 Oppgave:
-1. Lag en optimal, naturlig og idiomatisk nordsamisk oversettelse av HELE den norske kildeteksten (pass nøye på at absolutt alle avsnitt og sitater blir med!).
-2. Bruk TartuNLP- og Divvun-utkastet som hjelp, men skriv om der det er nødvendig for å unngå ord-for-ord-oversettelse, passiv-syke eller substantivsyke. Følg normene fra Sámi Giellagáldu (Riektačállinrávvagat 2019) og NRK Sámi Giellagiehtagirji.
-3. Returner svaret som gyldig JSON med nøklene "final_translation" og "improvements".
-"""
+1. Lag en presis, naturlig og idiomatisk nordsamisk oversettelse av HELE den {lang_label}e kildeteksten med nøyaktig samme avsnittsinndeling.
+2. {draft_hint} Følg normene fra Sámi Giellagáldu (Riektačállinrávvagat 2019) og NRK Sámi Giellagiehtagirji.
+3. Returner gyldig JSON med nøklene "final_translation" og "improvements" (korte punkter på norsk som forklarer de viktigste språklige grepene)."""
 
-    payload = {
-        "systemInstruction": {
-            "parts": [{"text": SAMI_GUIDELINES_PROMPT}]
-        },
-        "contents": [
-            {
-                "role": "user",
-                "parts": [{"text": user_prompt}]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.2,
-            "responseMimeType": "application/json",
-            "responseSchema": {
-                "type": "OBJECT",
-                "properties": {
-                    "final_translation": {
-                        "type": "STRING",
-                        "description": "Den fullstendige, ferdige nordsamiske teksten med alle avsnitt."
-                    },
-                    "improvements": {
-                        "type": "ARRAY",
-                        "items": {"type": "STRING"},
-                        "description": "Liste med korte punkter på norsk som forklarer de viktigste språklige forbedringene."
-                    }
-                },
-                "required": ["final_translation", "improvements"]
-            }
+
+async def call_gemini_refiner(
+    source_text: str,
+    tartu_draft: Optional[str],
+    divvun_corrected: Optional[str],
+    divvun_errs: list,
+    local_tips: list,
+    override_key: Optional[str] = None,
+    override_model: Optional[str] = None,
+    source_lang: str = "nor",
+    thinking_level: Literal["low", "medium", "high"] = "medium",
+    glossary: Optional[str] = None,
+) -> dict:
+    """Trinn 3: Oversetter / språkvasker til nordsamisk via Google GenAI Interactions API (Gemini 4)."""
+    active_key = (override_key or GEMINI_API_KEY).strip()
+    requested_model, deprecation_note = normalize_gemini_model(override_model)
+    fallback_text = divvun_corrected or tartu_draft or (source_text if source_lang == "sme" else "")
+
+    if not active_key or active_key == PLACEHOLDER_KEY:
+        msg = (
+            "GEMINI_API_KEY er ikke lagt inn ennå (legg den i .env eller under Innstillinger). "
+            + (
+                "Viser tekst korrigert av Divvun API."
+                if fallback_text
+                else "Kunne ikke oversette fordi verken TartuNLP eller Gemini API-nøkkel var tilgjengelig."
+            )
+        )
+        return {
+            "final_translation": fallback_text,
+            "improvements": [msg],
+            "llm_active": False,
+            "used_model": None,
         }
-    }
+
+    compact_errs = [
+        {
+            "error_text": e.get("error_text"),
+            "title": e.get("title"),
+            "suggestions": (e.get("suggestions") or [])[:3],
+        }
+        for e in divvun_errs[:40]
+    ]
+
+    user_prompt = _build_refiner_user_prompt(
+        source_text=source_text,
+        tartu_draft=tartu_draft,
+        divvun_corrected=divvun_corrected,
+        compact_errs=compact_errs,
+        local_tips=local_tips,
+        source_lang=source_lang,
+    )
+    system_instruction = build_system_instruction(source_lang=source_lang, glossary=glossary)
 
     fallback_candidates = [
         requested_model,
-        "gemini-3.1-pro-preview",
-        "gemini-3.1-flash-preview",
-        "gemini-3.0-pro",
-        "gemini-3.0-flash",
-        "gemini-2.5-flash"
+        "gemini-4-argon",
+        "gemini-4-hydrogen",
+        "gemini-4-carbon",
+        "gemini-3.5-flash-lite",
     ]
     models_to_try = list(dict.fromkeys(fallback_candidates))
 
     last_error_msg = ""
-    # 180 sekunders timeout slik at Gemini 3.1 Pro med tenketid (thinking) på lange artikler aldri avbrytes før svaret kommer!
-    async with httpx.AsyncClient(timeout=180.0) as client:
-        tried_dynamic_list = False
-        idx = 0
-        while idx < len(models_to_try):
-            candidate_model = models_to_try[idx]
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{candidate_model}:generateContent?key={active_key}"
+    try:
+        client = genai.Client(api_key=active_key, http_options={"timeout": 180_000})
+    except Exception as exc:
+        safe_err = sanitize_error_message(str(exc), active_key)
+        return {
+            "final_translation": fallback_text,
+            "improvements": [f"Kunne ikke initialisere Gemini SDK: {safe_err}"],
+            "llm_active": False,
+            "used_model": None,
+        }
+
+    tried_dynamic_list = False
+    idx = 0
+    while idx < len(models_to_try):
+        candidate_model = models_to_try[idx]
+        retried_overload = False
+
+        while True:
             try:
-                resp = await client.post(
-                    gemini_url,
-                    headers={"Content-Type": "application/json"},
-                    json=payload
+                interaction = await client.aio.interactions.create(
+                    model=candidate_model,
+                    system_instruction=system_instruction,
+                    input=user_prompt,
+                    response_format={
+                        "type": "text",
+                        "mime_type": "application/json",
+                        "schema": RefinementSchema.model_json_schema(),
+                    },
+                    generation_config={
+                        "thinking_level": thinking_level,
+                        "max_output_tokens": 32768,
+                    },
                 )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    candidates = data.get("candidates", [])
-                    if candidates:
-                        parts = candidates[0].get("content", {}).get("parts", [])
-                        # Viktig for Gemini 3.1 Thinking-modeller:
-                        # Parts kan inneholde en {"thought": true, "text": "..."} del FØR selve JSON-svaret!
-                        json_text_candidate = ""
-                        for p in reversed(parts):
-                            if not p.get("thought", False) and p.get("text"):
-                                json_text_candidate = p["text"]
-                                break
-                        if not json_text_candidate and parts:
-                            json_text_candidate = parts[-1].get("text", "{}")
 
-                        parsed = extract_gemini_json(json_text_candidate)
-                        final_trans = parsed.get("final_translation")
-                        improvements = parsed.get("improvements", [])
+                raw_json = extract_interaction_text(interaction)
+                final_trans = ""
+                improvements: List[str] = []
 
-                        if final_trans and final_trans.strip():
-                            if candidate_model != requested_model:
-                                improvements.insert(
-                                    0,
-                                    f"Merk: '{requested_model}' var ikke tilgjengelig på nøkkelen, så systemet brukte '{candidate_model}'."
-                                )
-                            return {
-                                "final_translation": final_trans,
-                                "improvements": improvements,
-                                "llm_active": True,
-                                "used_model": candidate_model
-                            }
-                        else:
-                            last_error_msg = f"Kunne ikke tolke JSON fra Gemini-svaret: {json_text_candidate[:200]}"
-                            return {
-                                "final_translation": divvun_corrected or tartu_draft,
-                                "improvements": [last_error_msg],
-                                "llm_active": False,
-                                "used_model": candidate_model
-                            }
-                elif resp.status_code == 404:
-                    last_error_msg = resp.text[:250]
-                    if not tried_dynamic_list:
+                if raw_json:
+                    try:
+                        validated = RefinementSchema.model_validate_json(raw_json)
+                        final_trans = validated.final_translation
+                        improvements = list(validated.improvements)
+                    except Exception:
+                        parsed = extract_gemini_json(raw_json)
+                        final_trans = parsed.get("final_translation") or ""
+                        improvements = list(parsed.get("improvements") or [])
+
+                if final_trans and final_trans.strip():
+                    if getattr(interaction, "status", None) == "incomplete":
+                        improvements.insert(
+                            0,
+                            "Advarsel: Svaret fra modellen nådde maks utdata-lengde og kan være avkortet. Del gjerne ekstra lange tekster i to.",
+                        )
+                    if candidate_model != requested_model:
+                        improvements.insert(
+                            0,
+                            f"Merk: '{requested_model}' var utilgjengelig eller over kvoten, så systemet brukte '{candidate_model}'.",
+                        )
+                    if deprecation_note:
+                        improvements.insert(0, deprecation_note)
+                    return {
+                        "final_translation": final_trans,
+                        "improvements": improvements,
+                        "llm_active": True,
+                        "used_model": candidate_model,
+                    }
+
+                last_error_msg = f"Kunne ikke tolke strukturert svar fra '{candidate_model}'."
+                break
+            except Exception as exc:
+                status_code, should_fallback = _classify_gemini_exception(exc)
+                safe_err = sanitize_error_message(str(exc), active_key)
+                last_error_msg = f"{candidate_model}: {safe_err}"
+                logger.warning("Gemini API feil (%s): %s", status_code, last_error_msg)
+
+                if status_code == 503 and not retried_overload:
+                    retried_overload = True
+                    await asyncio.sleep(1.5)
+                    continue
+
+                if should_fallback:
+                    if status_code == 404 and not tried_dynamic_list:
                         tried_dynamic_list = True
                         avail = await fetch_available_gemini_models(active_key)
                         for m in avail:
                             if m["id"] not in models_to_try:
                                 models_to_try.append(m["id"])
-                    idx += 1
-                    continue
-                else:
-                    err_msg = resp.text[:250]
-                    return {
-                        "final_translation": divvun_corrected or tartu_draft,
-                        "improvements": [f"Gemini API feilmelding for '{candidate_model}' ({resp.status_code}): {err_msg}"],
-                        "llm_active": False,
-                        "used_model": candidate_model
-                    }
-            except Exception as e:
+                    break
+
                 return {
-                    "final_translation": divvun_corrected or tartu_draft,
-                    "improvements": [f"Tidsavbrudd eller nettverksfeil mot Gemini API ({type(e).__name__}: {str(e)}). Prøv gjerne gemini-3.1-flash-preview på ekstra lange tekster."],
+                    "final_translation": fallback_text,
+                    "improvements": [
+                        f"Feil mot Gemini API for '{candidate_model}': {safe_err}. "
+                        "Ved ekstra lange tekster kan du prøve 'gemini-4-hydrogen' eller tenkenivå 'low'."
+                    ],
                     "llm_active": False,
-                    "used_model": candidate_model
+                    "used_model": candidate_model,
                 }
 
+        idx += 1
+
     return {
-        "final_translation": divvun_corrected or tartu_draft,
+        "final_translation": fallback_text,
         "improvements": [f"Ingen Gemini-modell svarte. Siste feilmelding: {last_error_msg}"],
         "llm_active": False,
-        "used_model": requested_model
+        "used_model": requested_model,
     }
 
-@app.post("/api/translate")
-async def translate_pipeline(req: TranslateRequest):
-    if not req.text.strip():
-        raise HTTPException(status_code=400, detail="Teksten er tom.")
 
-    src_lang = req.source_lang.lower().strip() if req.source_lang else "nor"
-    is_sami_source = (src_lang == "sme")
+async def run_translation_pipeline_events(
+    req: TranslateRequest,
+    header_api_key: Optional[str] = None,
+) -> AsyncGenerator[dict, None]:
+    """Felles pipeline-generator som brukes av både /api/translate og /api/translate-stream."""
+    src_lang = req.source_lang
+    is_sami_source = src_lang == "sme"
+    lang_cfg = SOURCE_LANGUAGES.get(src_lang, SOURCE_LANGUAGES["nor"])
+    effective_key = (req.api_key or header_api_key or GEMINI_API_KEY).strip() or None
 
-    # Trinn 1: TartuNLP råoversettelse (hoppes over hvis kildeteksten allerede er nordsamisk)
+    # Trinn 1: Klargjøring eller TartuNLP
+    yield {
+        "type": "progress",
+        "step": 1,
+        "percent": 20,
+        "title": str(lang_cfg["step1_title"]),
+        "detail": str(lang_cfg["step1_detail"]),
+    }
+
     if is_sami_source:
-        tartu_raw = req.text
+        tartu_raw: Optional[str] = req.text
+        tartu_display = req.text
     else:
         tartu_raw = await call_tartu_mt(req.text, src=src_lang, tgt="sme")
-        if not tartu_raw:
-            tartu_raw = "[TartuNLP svarte ikke – bruker Gemini og Divvun direkte]"
+        tartu_display = (
+            tartu_raw
+            if tartu_raw is not None
+            else "[TartuNLP støttet ikke språkparet eller svarte ikke – bruker Gemini og Divvun direkte]"
+        )
 
-    # Trinn 2: Divvun grammatikk- og korrekturkontroll
-    divvun_initial = await call_divvun_grammar(tartu_raw) if not tartu_raw.startswith("[") else {"errs": []}
-    initial_errs = divvun_initial.get("errs", [])
-    divvun_pre_corrected = apply_divvun_suggestions(tartu_raw, initial_errs) if req.auto_apply_divvun and not tartu_raw.startswith("[") else tartu_raw
-
-    # Lokale språksjekker
-    local_tips = local_heuristic_checks(req.text if not is_sami_source else "", divvun_pre_corrected if not divvun_pre_corrected.startswith("[") else "")
-
-    # Trinn 3: Språkvask med Gemini
-    llm_result = await call_gemini_refiner(
-        req.text,
-        tartu_raw,
-        divvun_pre_corrected,
-        initial_errs,
-        local_tips,
-        override_key=req.api_key,
-        override_model=req.model,
-        source_lang=src_lang
-    ) if req.use_llm else {
-        "final_translation": divvun_pre_corrected,
-        "improvements": ["Gemini-språkvask deaktivert av bruker."],
-        "llm_active": False,
-        "used_model": None
+    # Trinn 2: Divvun 1. runde (kjøres KUN når vi faktisk har samisk tekst å sjekke!)
+    yield {
+        "type": "progress",
+        "step": 2,
+        "percent": 40,
+        "title": "Trinn 2 av 4: Divvun Grammatikk & Korrektur",
+        "detail": (
+            "Analyserer samisk utkast med UiT GiellaLT / Divvun API og kjører språkregelsjekker..."
+            if tartu_raw is not None
+            else "Hopper over første Divvun-sjekk siden TartuNLP ikke leverte samisk råutkast..."
+        ),
     }
 
-    gemini_text = llm_result["final_translation"]
-    llm_succeeded = llm_result.get("llm_active", False)
+    if tartu_raw is not None:
+        divvun_initial = await call_divvun_grammar(tartu_raw)
+        initial_errs = divvun_initial.get("errs", [])
+        divvun_pre_corrected: Optional[str] = (
+            apply_divvun_suggestions(
+                tartu_raw,
+                initial_errs,
+                protect_proper_nouns=True,
+                source_text="" if is_sami_source else req.text,
+            )
+            if req.auto_apply_divvun
+            else tartu_raw
+        )
+        local_tips = local_heuristic_checks(
+            "" if is_sami_source else req.text,
+            divvun_pre_corrected or "",
+        )
+    else:
+        initial_errs = []
+        divvun_pre_corrected = None
+        local_tips = []
 
-    # Trinn 4: Kjør Divvun på Geminis tekst. Hvis Divvun har merknader og auto_apply_divvun er på,
-    # fikser vi dem automatisk (først via en rask Gemini+Divvun-sløyfe, og deretter direkte med Divvun-forslagene)!
-    final_divvun = await call_divvun_grammar(gemini_text)
-    final_errs = final_divvun.get("errs", [])
+    # Trinn 3: Gemini 4 Språkvask / Oversettelse
+    if req.use_llm:
+        chosen_model, _ = normalize_gemini_model(req.model)
+        title_step3 = (
+            f"Trinn 3 av 4: Gemini Språkvask & Korrektur ({chosen_model})"
+            if is_sami_source
+            else f"Trinn 3 av 4: Gemini Oversettelse & Språkvask ({chosen_model})"
+        )
+        detail_step3 = (
+            "Retter feil og forbedrer stilen etter Riektačállinrávvagat og Giellagiehtagirji..."
+            if is_sami_source
+            else "Utarbeider idiomatisk nordsamisk etter Riektačállinrávvagat og Giellagiehtagirji..."
+        )
+        yield {
+            "type": "progress",
+            "step": 3,
+            "percent": 70,
+            "title": title_step3,
+            "detail": detail_step3,
+        }
+        llm_result = await call_gemini_refiner(
+            source_text=req.text,
+            tartu_draft=tartu_raw,
+            divvun_corrected=divvun_pre_corrected,
+            divvun_errs=initial_errs,
+            local_tips=local_tips,
+            override_key=effective_key,
+            override_model=req.model,
+            source_lang=src_lang,
+            thinking_level=req.thinking_level,
+            glossary=req.glossary,
+        )
+    else:
+        if divvun_pre_corrected is None and not is_sami_source:
+            llm_result = {
+                "final_translation": "",
+                "improvements": [
+                    "TartuNLP svarte ikke for valgt språk, og Gemini-språkvask er skrudd av. Aktiver Gemini språkvask i Innstillinger for å oversette."
+                ],
+                "llm_active": False,
+                "used_model": None,
+            }
+        else:
+            llm_result = {
+                "final_translation": divvun_pre_corrected or req.text,
+                "improvements": ["Gemini-språkvask deaktivert av bruker."],
+                "llm_active": False,
+                "used_model": None,
+            }
+
+    gemini_text = llm_result.get("final_translation") or ""
+    llm_succeeded = bool(llm_result.get("llm_active", False))
+
+    # Trinn 4: Sluttkontroll med Divvun
+    yield {
+        "type": "progress",
+        "step": 4,
+        "percent": 88,
+        "title": "Trinn 4 av 4: Divvun Sluttkontroll & Autoretting",
+        "detail": "Kontrollerer det ferdige produktet med Divvun og luker ut eventuelle siste merknader...",
+    }
+
     final_text = gemini_text
+    final_divvun = await call_divvun_grammar(final_text) if final_text.strip() else {"errs": []}
+    final_errs = final_divvun.get("errs", [])
 
-    if req.auto_apply_divvun and final_errs:
+    if req.auto_apply_divvun and final_errs and final_text.strip():
         initial_err_count = len(final_errs)
         if llm_succeeded:
-            # La Gemini rette Divvun-merknadene intelligent først
+            yield {
+                "type": "progress",
+                "step": 4,
+                "percent": 94,
+                "title": f"Trinn 4 av 4: Fikser {initial_err_count} Divvun-merknader i sluttproduktet...",
+                "detail": "Gemini og Divvun retter siste bøyings- og rettskrivingsmerknader...",
+            }
             refined_by_divvun = await call_gemini_final_divvun_pass(
-                req.text, gemini_text, final_errs, override_key=req.api_key, override_model=req.model, source_lang=src_lang
+                source_text=req.text,
+                gemini_draft=final_text,
+                divvun_errs=final_errs,
+                override_key=effective_key,
+                override_model=req.model,
+                source_lang=src_lang,
+                glossary=req.glossary,
             )
-            if refined_by_divvun:
+            if refined_by_divvun and refined_by_divvun.strip() and refined_by_divvun != final_text:
                 final_text = refined_by_divvun
                 final_divvun = await call_divvun_grammar(final_text)
                 final_errs = final_divvun.get("errs", [])
 
-        # Hvis det fortsatt gjenstår konkrete Divvun-merknader med forslag, bruk Divvuns beste forslag direkte (men beskytt egennavn)
         if final_errs:
-            final_text = apply_divvun_suggestions_smart(final_text, final_errs, protect_proper_nouns=True)
-            final_divvun = await call_divvun_grammar(final_text)
-            final_errs = final_divvun.get("errs", [])
+            smart_corrected = apply_divvun_suggestions(
+                final_text,
+                final_errs,
+                protect_proper_nouns=True,
+                source_text="" if is_sami_source else req.text,
+            )
+            # Kall kun Divvun på nytt dersom teksten faktisk ble endret!
+            if smart_corrected != final_text:
+                final_text = smart_corrected
+                final_divvun = await call_divvun_grammar(final_text)
+                final_errs = final_divvun.get("errs", [])
 
         fixed_count = max(0, initial_err_count - len(final_errs))
         if fixed_count > 0:
@@ -811,221 +1409,99 @@ async def translate_pipeline(req: TranslateRequest):
                 f"Divvun-sluttkontroll: Rettet automatisk {fixed_count} av {initial_err_count} Divvun-merknader i sluttproduktet."
             )
 
-    final_local_tips = local_heuristic_checks(req.text if not is_sami_source else "", final_text)
+    final_local_tips = (
+        local_heuristic_checks("" if is_sami_source else req.text, final_text)
+        if final_text.strip()
+        else []
+    )
 
-    return {
+    combined_tips = (
+        final_local_tips
+        if llm_succeeded
+        else (local_tips + [t for t in final_local_tips if t not in local_tips])
+    )
+
+    result_payload = {
         "source_text": req.text,
         "source_lang": src_lang,
-        "step1_tartu_raw": tartu_raw,
+        "step1_tartu_raw": tartu_display,
+        "step1_had_tartu": tartu_raw is not None,
         "step2_divvun_initial_errors": initial_errs,
-        "step2_divvun_corrected": divvun_pre_corrected,
+        "step2_divvun_corrected": divvun_pre_corrected or "",
         "step3_final_text": final_text,
         "step3_improvements": llm_result.get("improvements", []),
         "llm_active": llm_succeeded,
         "used_model": llm_result.get("used_model"),
-        "final_divvun_errors": final_divvun.get("errs", []),
-        "language_tips": final_local_tips if llm_succeeded else (local_tips + [t for t in final_local_tips if t not in local_tips])
+        "final_divvun_errors": final_errs,
+        "language_tips": combined_tips,
+    }
+
+    yield {
+        "type": "result",
+        "percent": 100,
+        "data": result_payload,
     }
 
 
-@app.post("/api/translate-stream")
-async def translate_pipeline_stream(req: TranslateRequest):
+@app.post("/api/translate")
+async def translate_pipeline(
+    req: TranslateRequest,
+    x_gemini_api_key: Optional[str] = Header(default=None, alias="X-Gemini-Api-Key"),
+):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Teksten er tom.")
 
-    src_lang = req.source_lang.lower().strip() if req.source_lang else "nor"
-    is_sami_source = (src_lang == "sme")
+    final_data = None
+    async for event in run_translation_pipeline_events(req, header_api_key=x_gemini_api_key):
+        if event.get("type") == "result":
+            final_data = event["data"]
 
-    async def event_generator():
-        def send_event(obj: dict) -> str:
-            return json.dumps(obj, ensure_ascii=False) + "\n"
+    if final_data is None:
+        raise HTTPException(status_code=500, detail="Oversettelsespipelinen leverte ikke noe resultat.")
+    return final_data
 
-        # Trinn 1: Klargjøring eller TartuNLP
-        if is_sami_source:
-            yield send_event({
-                "type": "progress",
-                "step": 1,
-                "percent": 20,
-                "title": "Trinn 1 av 4: Klargjør nordsamisk tekst",
-                "detail": "Kildeteksten er på nordsamisk – hopper over maskinoversettelse..."
-            })
-            tartu_raw = req.text
-        elif src_lang == "swe":
-            yield send_event({
-                "type": "progress",
-                "step": 1,
-                "percent": 20,
-                "title": "Trinn 1 av 4: TartuNLP Svensk &rarr; Samisk",
-                "detail": "Henter svensk-til-nordsamisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)..."
-            })
-            tartu_raw = await call_tartu_mt(req.text, src="swe", tgt="sme")
-            if not tartu_raw:
-                tartu_raw = "[TartuNLP svarte ikke – bruker Gemini og Divvun direkte]"
-        elif src_lang == "fin":
-            yield send_event({
-                "type": "progress",
-                "step": 1,
-                "percent": 20,
-                "title": "Trinn 1 av 4: TartuNLP Finsk &rarr; Samisk",
-                "detail": "Henter finsk-til-nordsamisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)..."
-            })
-            tartu_raw = await call_tartu_mt(req.text, src="fin", tgt="sme")
-            if not tartu_raw:
-                tartu_raw = "[TartuNLP svarte ikke – bruker Gemini og Divvun direkte]"
-        elif src_lang == "eng":
-            yield send_event({
-                "type": "progress",
-                "step": 1,
-                "percent": 20,
-                "title": "Trinn 1 av 4: TartuNLP Engelsk &rarr; Samisk",
-                "detail": "Henter engelsk-til-nordsamisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)..."
-            })
-            tartu_raw = await call_tartu_mt(req.text, src="eng", tgt="sme")
-            if not tartu_raw:
-                tartu_raw = "[TartuNLP svarte ikke – bruker Gemini og Divvun direkte]"
-        else:
-            yield send_event({
-                "type": "progress",
-                "step": 1,
-                "percent": 20,
-                "title": "Trinn 1 av 4: TartuNLP Norsk &rarr; Samisk",
-                "detail": "Henter morfologisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)..."
-            })
-            tartu_raw = await call_tartu_mt(req.text, src="nor", tgt="sme")
-            if not tartu_raw:
-                tartu_raw = "[TartuNLP svarte ikke – bruker Gemini og Divvun direkte]"
 
-        # Trinn 2: Divvun 1. runde
-        yield send_event({
-            "type": "progress",
-            "step": 2,
-            "percent": 40,
-            "title": "Trinn 2 av 4: Divvun Grammatikk & Korrektur",
-            "detail": "Analyserer teksten med UiT GiellaLT / Divvun API og kjører språkregelsjekker..."
-        })
-        divvun_initial = await call_divvun_grammar(tartu_raw) if not tartu_raw.startswith("[") else {"errs": []}
-        initial_errs = divvun_initial.get("errs", [])
-        divvun_pre_corrected = apply_divvun_suggestions(tartu_raw, initial_errs) if req.auto_apply_divvun and not tartu_raw.startswith("[") else tartu_raw
-        local_tips = local_heuristic_checks(req.text if not is_sami_source else "", divvun_pre_corrected if not divvun_pre_corrected.startswith("[") else "")
+@app.post("/api/translate-stream")
+async def translate_pipeline_stream(
+    req: TranslateRequest,
+    x_gemini_api_key: Optional[str] = Header(default=None, alias="X-Gemini-Api-Key"),
+):
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="Teksten er tom.")
 
-        # Trinn 3: Gemini Språkvask
-        if req.use_llm:
-            chosen_model = (req.model or GEMINI_MODEL).strip() or "gemini-3.1-pro-preview"
-            title_step3 = (
-                f"Trinn 3 av 4: Gemini Språkvask & Korrektur ({chosen_model})"
-                if is_sami_source else
-                f"Trinn 3 av 4: Gemini Språkvask ({chosen_model})"
-            )
-            detail_step3 = (
-                "Retter skrivefeil og forbedrer stilen etter Riektačállinrávvagat og Giellagiehtagirji..."
-                if is_sami_source else
-                "Omskriver til naturlig nordsamisk etter Riektačállinrávvagat og Giellagiehtagirji..."
-            )
-            yield send_event({
-                "type": "progress",
-                "step": 3,
-                "percent": 70,
-                "title": title_step3,
-                "detail": detail_step3
-            })
-            llm_result = await call_gemini_refiner(
-                req.text,
-                tartu_raw,
-                divvun_pre_corrected,
-                initial_errs,
-                local_tips,
-                override_key=req.api_key,
-                override_model=req.model,
-                source_lang=src_lang
-            )
-        else:
-            llm_result = {
-                "final_translation": divvun_pre_corrected,
-                "improvements": ["Gemini-språkvask deaktivert av bruker."],
-                "llm_active": False,
-                "used_model": None
-            }
+    effective_key = (req.api_key or x_gemini_api_key or GEMINI_API_KEY).strip()
 
-        gemini_text = llm_result["final_translation"]
-        llm_succeeded = llm_result.get("llm_active", False)
-
-        # Trinn 4: Sluttkontroll med Divvun
-        yield send_event({
-            "type": "progress",
-            "step": 4,
-            "percent": 88,
-            "title": "Trinn 4 av 4: Divvun Sluttkontroll & Autoretting",
-            "detail": "Kontrollerer det ferdige produktet med Divvun og luker ut eventuelle siste merknader..."
-        })
-        final_divvun = await call_divvun_grammar(gemini_text)
-        final_errs = final_divvun.get("errs", [])
-        final_text = gemini_text
-
-        if req.auto_apply_divvun and final_errs:
-            initial_err_count = len(final_errs)
-            if llm_succeeded:
-                yield send_event({
-                    "type": "progress",
-                    "step": 4,
-                    "percent": 94,
-                    "title": f"Trinn 4 av 4: Fikser {initial_err_count} Divvun-merknader i sluttproduktet...",
-                    "detail": "Gemini og Divvun retter siste bøyings- og rettskrivingsmerknader..."
-                })
-                refined_by_divvun = await call_gemini_final_divvun_pass(
-                    req.text, gemini_text, final_errs, override_key=req.api_key, override_model=req.model, source_lang=src_lang
-                )
-                if refined_by_divvun:
-                    final_text = refined_by_divvun
-                    final_divvun = await call_divvun_grammar(final_text)
-                    final_errs = final_divvun.get("errs", [])
-
-            if final_errs:
-                final_text = apply_divvun_suggestions_smart(final_text, final_errs, protect_proper_nouns=True)
-                final_divvun = await call_divvun_grammar(final_text)
-                final_errs = final_divvun.get("errs", [])
-
-            fixed_count = max(0, initial_err_count - len(final_errs))
-            if fixed_count > 0:
-                llm_result.setdefault("improvements", []).append(
-                    f"Divvun-sluttkontroll: Rettet automatisk {fixed_count} av {initial_err_count} Divvun-merknader i sluttproduktet."
-                )
-
-        final_local_tips = local_heuristic_checks(req.text if not is_sami_source else "", final_text)
-
-        result_payload = {
-            "source_text": req.text,
-            "source_lang": src_lang,
-            "step1_tartu_raw": tartu_raw,
-            "step2_divvun_initial_errors": initial_errs,
-            "step2_divvun_corrected": divvun_pre_corrected,
-            "step3_final_text": final_text,
-            "step3_improvements": llm_result.get("improvements", []),
-            "llm_active": llm_succeeded,
-            "used_model": llm_result.get("used_model"),
-            "final_divvun_errors": final_divvun.get("errs", []),
-            "language_tips": final_local_tips if llm_succeeded else (local_tips + [t for t in final_local_tips if t not in local_tips])
-        }
-
-        yield send_event({
-            "type": "result",
-            "percent": 100,
-            "data": result_payload
-        })
+    async def event_generator() -> AsyncGenerator[str, None]:
+        try:
+            async for event in run_translation_pipeline_events(req, header_api_key=x_gemini_api_key):
+                yield json.dumps(event, ensure_ascii=False) + "\n"
+        except asyncio.CancelledError:
+            logger.info("Klienten avbrøt oversettelsesstrømmen.")
+            raise
+        except Exception as exc:
+            safe_msg = sanitize_error_message(str(exc), effective_key)
+            logger.error("Uventet feil i translate-stream: %s", safe_msg)
+            yield json.dumps({"type": "error", "message": safe_msg}, ensure_ascii=False) + "\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
+
 @app.post("/api/proofread")
 async def proofread_only(req: ProofreadRequest):
-    """Lar brukeren kjøre ren Divvun-korrektur + NRK-språksjekk når de redigerer den samiske teksten manuelt."""
+    """Lar brukeren kjøre ren Divvun-korrektur + språksjekk når de redigerer den samiske teksten manuelt."""
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="Teksten er tom.")
     divvun_res = await call_divvun_grammar(req.text)
     tips = local_heuristic_checks("", req.text)
     return {
         "text": req.text,
         "errs": divvun_res.get("errs", []),
-        "language_tips": tips
+        "language_tips": tips,
     }
 
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/")
 async def index():

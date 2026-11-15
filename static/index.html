@@ -1,52 +1,38 @@
 <!DOCTYPE html>
-<html lang="no">
+<html lang="nb">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Jorgaleaddji – Norsk → Davvisámegillii</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-  </style>
+  <link rel="stylesheet" href="/static/styles.css" />
 </head>
 
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
+<body>
 
   <!-- Topplinje -->
-  <header class="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-30 px-4 sm:px-6 py-3 transition">
-    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+  <header class="site-header">
+    <div class="header-inner">
 
       <!-- Logo & tittel -->
-      <div class="flex items-center space-x-3">
-        <div
-          class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm tracking-wide shadow-sm shadow-indigo-200">
-          SÁ
-        </div>
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">SÁ</div>
         <div>
-          <div class="flex items-center space-x-2">
-            <h1 class="text-base font-semibold text-slate-900 tracking-tight">Jorgaleaddji</h1>
-          </div>
-          <p id="headerSubtitle" class="text-xs text-slate-500">Norsk &rarr; Davvisámegillii</p>
+          <h1 class="brand-title">Jorgaleaddji</h1>
+          <p id="headerSubtitle" class="brand-subtitle">Norsk → Davvisámegillii</p>
         </div>
       </div>
 
-      <!-- Høyre side: Status og innstillinger-knapp -->
-      <div class="flex items-center space-x-2">
-        <div id="headerModelBadge"
-          class="hidden sm:inline-flex items-center text-xs text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5"></span>
-          <span id="headerModelLabel">gemini-3.1-pro-preview</span>
+      <!-- Høyre side: Modellindikator og Innstillinger -->
+      <div class="header-actions">
+        <div id="headerModelBadge" class="model-pill is-ready">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="headerModelLabel">gemini-4-argon</span>
         </div>
 
-        <button id="toggleSettingsBtn" onclick="toggleSettings()"
-          class="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200/80 rounded-lg border border-slate-200/70 transition"
-          title="Åpne innstillinger for modell og API-nøkkel">
-          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button type="button" id="toggleSettingsBtn" class="btn-secondary" aria-expanded="false"
+          title="Åpne innstillinger for modell, API-nøkkel og ordliste">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
             </path>
@@ -59,43 +45,65 @@
 
     </div>
 
-    <!-- Innstillingspanel (skjult som standard for rent utseende) -->
-    <div id="settingsPanel" class="hidden border-t border-slate-200 mt-3 pt-3 pb-1 max-w-7xl mx-auto text-xs">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+    <!-- Innstillingspanel -->
+    <div id="settingsPanel" class="settings-panel" hidden>
+      <div class="settings-grid">
 
         <!-- Modellvalg -->
-        <div class="space-y-1.5">
-          <label class="font-medium text-slate-700 flex items-center justify-between">
-            <span>Gemini-modell</span>
-            <button onclick="loadAvailableModels()" class="text-indigo-600 hover:underline text-[11px]">Oppdater
-              modeller</button>
-          </label>
-          <select id="geminiModel"
-            class="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-indigo-500">
-            <option value="gemini-3.1-pro-preview" selected>gemini-3.1-pro-preview (Anbefalt)</option>
-            <option value="gemini-3.1-flash-preview">gemini-3.1-flash-preview (Rask)</option>
-            <option value="gemini-3.0-pro">gemini-3.0-pro</option>
-            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+        <div class="field-group">
+          <div class="field-label-row">
+            <label for="geminiModel">Gemini-modell</label>
+            <button type="button" id="refreshModelsBtn" class="btn-link">Oppdater modeller</button>
+          </div>
+          <select id="geminiModel" class="form-control">
+            <option value="gemini-4-argon" selected>gemini-4-argon — Gemini 4 Argon (Anbefalt)</option>
+            <option value="gemini-4-carbon">gemini-4-carbon — Gemini 4 Carbon (Dypest resonnering)</option>
+            <option value="gemini-4-hydrogen">gemini-4-hydrogen — Gemini 4 Hydrogen (Rask &amp; gratisnivå)</option>
+            <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite — Gemini 3.5 Flash-Lite (Lynrask)</option>
+          </select>
+        </div>
+
+        <!-- Tenkenivå -->
+        <div class="field-group">
+          <div class="field-label-row">
+            <label for="thinkingLevel">Tenkedybde (Thinking)</label>
+          </div>
+          <select id="thinkingLevel" class="form-control">
+            <option value="low">Lav (Raskest på lange tekster)</option>
+            <option value="medium" selected>Middels (Anbefalt balanse)</option>
+            <option value="high">Høy (Grundigst språkanalyse)</option>
           </select>
         </div>
 
         <!-- API-nøkkel -->
-        <div class="space-y-1.5">
-          <label class="font-medium text-slate-700">Gemini API-nøkkel</label>
-          <input type="password" id="geminiKeyInput" placeholder="Valgfri nøkkel (hvis ikke i .env)"
-            class="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-indigo-500" />
+        <div class="field-group">
+          <div class="field-label-row">
+            <label for="geminiKeyInput">Gemini API-nøkkel</label>
+          </div>
+          <input type="password" id="geminiKeyInput" autocomplete="off"
+            placeholder="Valgfri nøkkel (hvis ikke i .env)" class="form-control" />
         </div>
 
-        <!-- Toggles -->
-        <div class="space-y-2 pt-1">
-          <label class="flex items-center space-x-2 cursor-pointer">
-            <input type="checkbox" id="autoApplyDivvun" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
-            <span class="text-slate-700 font-medium">Automatisk retting av Divvun-feil</span>
+        <!-- Valgbrytere -->
+        <div class="checkbox-stack">
+          <label class="checkbox-label">
+            <input type="checkbox" id="autoApplyDivvun" checked />
+            <span>Automatisk retting av Divvun-feil</span>
           </label>
-          <label class="flex items-center space-x-2 cursor-pointer">
-            <input type="checkbox" id="useLlm" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
-            <span class="text-slate-700 font-medium">Gemini språkvask</span>
+          <label class="checkbox-label">
+            <input type="checkbox" id="useLlm" checked />
+            <span>Gemini språkvask</span>
           </label>
+        </div>
+
+        <!-- Egen ordliste / Terminologi -->
+        <div class="field-group settings-glossary-row">
+          <div class="field-label-row">
+            <label for="glossaryInput">Egen ordliste / fast terminologi (én per linje: <code>kildeord = samisk term</code>)</label>
+            <button type="button" id="starterGlossaryBtn" class="btn-link">Sett inn vanlige forvaltningstermer</button>
+          </div>
+          <textarea id="glossaryInput" rows="3" class="form-control glossary-textarea"
+            placeholder="Statsforvalteren = Stáhtahálddašeaddji&#10;kommunestyret = suohkanstivra"></textarea>
         </div>
 
       </div>
@@ -103,231 +111,253 @@
   </header>
 
   <!-- Hovedinnhold -->
-  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-4">
+  <main class="main-container">
 
-    <!-- Fremdriftsindikator (slank og diskret) -->
-    <div id="progressContainer"
-      class="hidden bg-white p-3.5 rounded-xl border border-indigo-100 shadow-sm space-y-2 transition-all">
-      <div class="flex items-center justify-between text-xs">
-        <div class="flex items-center space-x-2">
-          <svg id="progressSpinner" class="animate-spin h-3.5 w-3.5 text-indigo-600" xmlns="http://www.w3.org/2000/svg"
-            fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-          </svg>
-          <span id="progressTitle" class="font-semibold text-slate-800">Oversetter...</span>
+    <!-- Fremdriftsindikator med semantisk <progress> og avbryt-knapp -->
+    <div id="progressContainer" class="progress-card" hidden>
+      <div class="progress-top">
+        <div class="progress-status-left">
+          <progress id="progressSpinner" aria-label="Arbeider" class="loading-spinner"></progress>
+          <span id="progressTitle" class="progress-title">Oversetter...</span>
         </div>
-        <div class="flex items-center space-x-2 text-slate-500 font-mono">
+        <div class="progress-meta-right">
           <span id="progressTimer">0.0s</span>
-          <span>&bull;</span>
-          <span id="progressPercent" class="font-semibold text-indigo-600">0%</span>
+          <span aria-hidden="true">&bull;</span>
+          <span id="progressPercent" class="progress-pct">0%</span>
+          <button type="button" id="cancelBtn" class="btn-danger-ghost">Avbryt</button>
         </div>
       </div>
 
-      <!-- Framdriftslinje -->
-      <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-        <div id="progressBar" class="bg-indigo-600 h-full rounded-full transition-all duration-300" style="width: 5%">
-        </div>
+      <progress id="progressBar" class="pipeline-progress" max="100" value="5" aria-labelledby="progressTitle"></progress>
+
+      <div class="progress-steps">
+        <span id="stepPill1" class="step-pill">1. TartuNLP (nor)</span>
+        <span aria-hidden="true">→</span>
+        <span id="stepPill2" class="step-pill">2. Divvun</span>
+        <span aria-hidden="true">→</span>
+        <span id="stepPill3" class="step-pill">3. Gemini</span>
+        <span aria-hidden="true">→</span>
+        <span id="stepPill4" class="step-pill">4. Sluttkontroll</span>
+      </div>
+      <p id="progressDetail" class="progress-detail"></p>
+    </div>
+
+    <!-- Hurtigrad for samiske spesialtegn + direkte oppslag i Sátni.org -->
+    <div class="sami-toolbar" role="toolbar" aria-label="Samiske spesialbokstaver og oppslag i Sátni.org">
+      <div class="char-group">
+        <span class="toolbar-caption">Samiske tegn:</span>
+        <button type="button" class="char-btn" data-char="Á">Á</button>
+        <button type="button" class="char-btn" data-char="á">á</button>
+        <button type="button" class="char-btn" data-char="Č">Č</button>
+        <button type="button" class="char-btn" data-char="č">č</button>
+        <button type="button" class="char-btn" data-char="Đ">Đ</button>
+        <button type="button" class="char-btn" data-char="đ">đ</button>
+        <button type="button" class="char-btn" data-char="Ŋ">Ŋ</button>
+        <button type="button" class="char-btn" data-char="ŋ">ŋ</button>
+        <button type="button" class="char-btn" data-char="Š">Š</button>
+        <button type="button" class="char-btn" data-char="š">š</button>
+        <button type="button" class="char-btn" data-char="Ŧ">Ŧ</button>
+        <button type="button" class="char-btn" data-char="ŧ">ŧ</button>
+        <button type="button" class="char-btn" data-char="Ž">Ž</button>
+        <button type="button" class="char-btn" data-char="ž">ž</button>
+        <button type="button" class="char-btn" data-char="”" title="Samisk sitattegn (”)">”</button>
+        <button type="button" class="char-btn" data-char="–" title="Tankestrek (–)">–</button>
       </div>
 
-      <!-- Stegvis oversikt -->
-      <div class="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
-        <span id="stepPill1">1. TartuNLP</span>
-        <span class="text-slate-300">&rarr;</span>
-        <span id="stepPill2">2. Divvun</span>
-        <span class="text-slate-300">&rarr;</span>
-        <span id="stepPill3">3. Gemini</span>
-        <span class="text-slate-300">&rarr;</span>
-        <span id="stepPill4">4. Sluttkontroll</span>
+      <div class="satni-quick-box">
+        <label for="satniQueryInput" class="visually-hidden">Søk i Sátni.org</label>
+        <input type="search" id="satniQueryInput" class="satni-input"
+          placeholder="Søk ord (eller merk tekst)..." />
+        <button type="button" id="satniLookupBtn" class="btn-secondary"
+          title="Slå opp skrevet eller markert ord i Sátni.org (Giellagáldu)">
+          <span>Sátni.org ↗</span>
+        </button>
       </div>
-      <p id="progressDetail" class="text-[11px] text-slate-500 truncate"></p>
     </div>
 
     <!-- Hovedoversetter (To kolonner) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="editor-grid">
 
       <!-- Venstre: Kilde med språkvelger -->
-      <div
-        class="bg-white rounded-2xl border border-slate-200/90 shadow-sm flex flex-col overflow-hidden focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-50 transition">
-        <div
-          class="px-4 py-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/60">
-          <!-- Språkvelger som elegant switch -->
-          <div class="inline-flex p-0.5 bg-slate-200/80 rounded-lg text-xs font-medium">
-            <button type="button" id="btnLangNor" onclick="setSourceLang('nor')"
-              class="px-2.5 py-1 rounded-md text-slate-900 bg-white shadow-sm font-semibold transition">
-              Norsk
-            </button>
-            <button type="button" id="btnLangSwe" onclick="setSourceLang('swe')"
-              class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition">
-              Svenska
-            </button>
-            <button type="button" id="btnLangFin" onclick="setSourceLang('fin')"
-              class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition">
-              Suomi
-            </button>
-            <button type="button" id="btnLangEng" onclick="setSourceLang('eng')"
-              class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition">
-              English
-            </button>
-            <button type="button" id="btnLangSme" onclick="setSourceLang('sme')"
-              class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition flex items-center space-x-1"
-              title="Giellašaddadeapmi ja divvun davvisámegillii">
+      <div class="editor-card">
+        <div class="editor-header">
+          <div class="lang-switcher" role="group" aria-label="Velg kildespråk">
+            <button type="button" id="btnLang_nor" class="lang-btn" aria-pressed="true">Norsk</button>
+            <button type="button" id="btnLang_swe" class="lang-btn" aria-pressed="false">Svenska</button>
+            <button type="button" id="btnLang_fin" class="lang-btn" aria-pressed="false">Suomi</button>
+            <button type="button" id="btnLang_eng" class="lang-btn" aria-pressed="false">English</button>
+            <button type="button" id="btnLang_sme" class="lang-btn" aria-pressed="false"
+              title="Gielladikšun ja divvun davvisámegillii">
               <span>Davvisámegiella</span>
-              <span class="text-[10px] px-1 py-0.2 bg-indigo-100 text-indigo-700 rounded font-semibold">vask</span>
+              <span class="tag-vask">vask</span>
             </button>
           </div>
 
-          <div class="flex items-center space-x-3 text-xs">
-            <span class="hidden sm:inline text-[11px] text-slate-400">
-              <kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono">⌘ + Enter</kbd>
-            </span>
-            <button onclick="loadExample()" class="text-indigo-600 hover:text-indigo-800 transition">Eksempel</button>
-            <button id="clearBtn" onclick="clearSource()"
-              class="text-slate-400 hover:text-slate-600 transition hidden">Tøm</button>
+          <div class="editor-header-tools">
+            <kbd class="kbd-hint" title="Hurtigtast for oversettelse">⌘ + Enter</kbd>
+            <button type="button" id="exampleBtn" class="btn-link">Eksempel</button>
+            <button type="button" id="clearBtn" class="btn-link btn-link-muted" hidden>Tøm</button>
           </div>
         </div>
 
-        <textarea id="sourceText" rows="11" placeholder="Skriv eller lim inn norsk tekst her..."
-          class="w-full p-4 text-base text-slate-800 placeholder-slate-400 focus:outline-none resize-y flex-1 leading-relaxed"></textarea>
+        <label for="sourceText" class="visually-hidden">Kildetekst</label>
+        <textarea id="sourceText" lang="nb" rows="11" placeholder="Skriv eller lim inn norsk tekst her..."
+          class="editor-textarea"></textarea>
 
-        <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/40">
-          <span id="charCount" class="text-xs text-slate-400">0 ord &bull; 0 tegn</span>
-          <button id="translateBtn" onclick="runPipeline()"
-            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5 disabled:opacity-50">
-            <span>Jorgalit ja dárkkistit</span>
+        <div class="editor-footer">
+          <span id="charCount">0 ord &bull; 0 tegn</span>
+          <button type="button" id="translateBtn" class="btn-primary">
+            <span id="translateBtnLabel">Jorgalit ja dárkkistit</span>
           </button>
         </div>
       </div>
 
       <!-- Høyre: Nordsamisk ferdig produkt -->
-      <div
-        class="bg-white rounded-2xl border border-slate-200/90 shadow-sm flex flex-col overflow-hidden focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-50 transition">
-        <div class="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-          <div class="flex items-center space-x-2">
-            <span id="targetHeaderLabel"
-              class="text-xs font-semibold text-slate-700 tracking-wide uppercase">Davvisámegiella</span>
-            <span id="pipelineBadge" class="hidden px-2 py-0.5 text-[10px] rounded-full font-medium"></span>
+      <div class="editor-card">
+        <div class="editor-header">
+          <div class="brand">
+            <span id="targetHeaderLabel" class="target-heading">Davvisámegiella</span>
+            <span id="pipelineBadge" class="pipeline-badge" hidden></span>
           </div>
-          <div class="flex items-center space-x-3 text-xs">
-            <button onclick="recheckDivvun()" class="text-indigo-600 hover:text-indigo-800 transition">Sjekk med
-              Divvun</button>
-            <button id="copyBtn" onclick="copyResult()"
-              class="text-slate-600 hover:text-slate-900 font-medium transition">Kopier</button>
+          <div class="editor-header-tools">
+            <button type="button" id="recheckDivvunBtn" class="btn-link">Sjekk med Divvun</button>
+
+            <span class="copy-wrap">
+              <button type="button" id="copyBtn" class="copy-button" command="--copy" commandfor="targetText">
+                <svg class="icon icon-copy" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="9" y="9" width="13" height="13" rx="2" stroke-width="2"></rect>
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke-width="2"></path>
+                </svg>
+                <svg class="icon icon-check" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span>Kopier</span>
+              </button>
+              <span class="copy-tip" role="status"></span>
+            </span>
           </div>
         </div>
 
-        <textarea id="targetText" rows="11"
+        <label for="targetText" class="visually-hidden">Nordsamisk tekst</label>
+        <textarea id="targetText" lang="se" spellcheck="false" rows="11"
           placeholder="Dás oainnát gárvves, gielladikšojuvvon ja korrekturlohkkojuvvon davvisámegiel teavstta..."
-          class="w-full p-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none resize-y flex-1 leading-relaxed"></textarea>
+          class="editor-textarea"></textarea>
 
-        <div
-          class="px-4 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/40 text-xs text-slate-500">
-          <span id="targetCount" class="text-slate-400">0 ord &bull; 0 tegn</span>
-          <div class="flex items-center space-x-3">
-            <span id="statusText" class="truncate max-w-[240px] sm:max-w-none">Klar</span>
-            <a href="https://satni.org" target="_blank" rel="noopener" class="text-indigo-600 hover:underline">Sátni.org
-              &nearr;</a>
+        <div class="editor-footer">
+          <span id="targetCount">0 ord &bull; 0 tegn</span>
+          <div class="footer-right">
+            <span id="statusText" class="status-text" role="status" aria-live="polite">Klar</span>
           </div>
         </div>
       </div>
 
     </div>
 
-    <!-- Oversettelsesinnsikt: Kompakt fanevisning i stedet for 3 tunge kort ("Less is more") -->
-    <div id="pipelineDetails"
-      class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+    <!-- Oversettelsesinnsikt: Tilgjengelige faner med Språkvask, Divvun, Endringer (Diff) og Råutkast -->
+    <section id="pipelineDetails" class="insights-card" aria-label="Oversettelsesinnsikt" hidden>
 
-      <!-- Fanehode -->
-      <div class="border-b border-slate-200 px-4 flex items-center justify-between bg-slate-50/50">
-        <div class="flex items-center space-x-1 sm:space-x-2">
-          <button id="tabBtnImprovements" onclick="switchTab('improvements')"
-            class="px-3 py-2.5 text-xs font-semibold border-b-2 border-indigo-600 text-indigo-700 flex items-center space-x-1.5 transition">
+      <div class="tabs-bar">
+        <div id="insightsTablist" class="tablist scroller" focusgroup="tablist nomemory"
+          aria-label="Detaljer fra oversettelsen">
+          <button type="button" id="tabBtnImprovements" class="tab-btn" data-tab="improvements" aria-selected="true"
+            focusgroupstart>
             <span>Språkvask &amp; råd</span>
-            <span id="badgeImprovementsCount"
-              class="px-1.5 py-0.2 bg-indigo-100 text-indigo-700 text-[10px] rounded-full font-bold">0</span>
+            <span id="badgeImprovementsCount" class="count-badge is-indigo">0</span>
           </button>
 
-          <button id="tabBtnDivvun" onclick="switchTab('divvun')"
-            class="px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 flex items-center space-x-1.5 transition">
+          <button type="button" id="tabBtnDivvun" class="tab-btn" data-tab="divvun" aria-selected="false">
             <span>Divvun-merknader</span>
-            <span id="badgeDivvunCount"
-              class="px-1.5 py-0.2 bg-slate-100 text-slate-600 text-[10px] rounded-full font-bold">0</span>
+            <span id="badgeDivvunCount" class="count-badge">0</span>
           </button>
 
-          <button id="tabBtnTartu" onclick="switchTab('tartu')"
-            class="px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 flex items-center space-x-1.5 transition">
+          <button type="button" id="tabBtnDiff" class="tab-btn" data-tab="diff" aria-selected="false">
+            <span>Endringer (Diff)</span>
+            <span id="badgeDiffCount" class="count-badge">0</span>
+          </button>
+
+          <button type="button" id="tabBtnTartu" class="tab-btn" data-tab="tartu" aria-selected="false">
             <span id="tabBtnTartuLabel">Råutkast (TartuNLP)</span>
           </button>
         </div>
 
-        <div id="usedModelLabel" class="text-[11px] text-slate-400 hidden sm:block"></div>
+        <div id="usedModelLabel" class="model-caption"></div>
       </div>
 
-      <!-- Faneinnhold -->
-      <div class="p-4 text-xs">
-
+      <div class="tabpanels-stack">
         <!-- Fane 1: Språkvask & råd -->
-        <div id="tabContentImprovements" class="space-y-2">
-          <div id="languageTipsBox" class="space-y-2 max-h-72 overflow-y-auto"></div>
-        </div>
-
-        <!-- Fane 2: Divvun-merknader -->
-        <div id="tabContentDivvun" class="hidden space-y-2">
-          <div id="divvunErrorsBox" class="space-y-2 max-h-72 overflow-y-auto"></div>
-        </div>
-
-        <!-- Fane 3: Råutkast -->
-        <div id="tabContentTartu" class="hidden space-y-2">
-          <div class="text-slate-500 text-[11px] mb-1">Morfologisk førsteutkast fra Universitetet i Tartu
-            (translate.ut.ee):</div>
-          <div id="tartuRawBox"
-            class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-slate-700 font-mono text-xs whitespace-pre-wrap max-h-72 overflow-y-auto">
+        <div id="tabPanelImprovements" role="tabpanel" data-panel="improvements" aria-labelledby="tabBtnImprovements"
+          tabindex="0">
+          <div class="tabpanel-inner">
+            <div id="languageTipsBox" class="scroll-box"></div>
           </div>
         </div>
 
+        <!-- Fane 2: Divvun-merknader -->
+        <div id="tabPanelDivvun" role="tabpanel" data-panel="divvun" aria-labelledby="tabBtnDivvun"
+          hidden="until-found">
+          <div class="tabpanel-inner">
+            <div id="divvunErrorsBox" class="scroll-box"></div>
+          </div>
+        </div>
+
+        <!-- Fane 3: Endringer (Diff) -->
+        <div id="tabPanelDiff" role="tabpanel" data-panel="diff" aria-labelledby="tabBtnDiff" hidden="until-found">
+          <div class="tabpanel-inner">
+            <p id="diffCaption" style="margin: 0 0 0.45rem; color: var(--text-soft); font-size: 0.72rem;"></p>
+            <div id="diffBox" class="diff-box" lang="se"></div>
+          </div>
+        </div>
+
+        <!-- Fane 4: Råutkast -->
+        <div id="tabPanelTartu" role="tabpanel" data-panel="tartu" aria-labelledby="tabBtnTartu" hidden="until-found">
+          <div class="tabpanel-inner">
+            <p id="rawTabCaption" style="margin: 0 0 0.45rem; color: var(--text-soft); font-size: 0.72rem;">
+              Morfologisk førsteutkast fra Universitetet i Tartu (translate.ut.ee):
+            </p>
+            <pre id="tartuRawBox" class="raw-pre" lang="se"></pre>
+          </div>
+        </div>
       </div>
-    </div>
+
+    </section>
 
     <!-- Språkregler & rettesnorer (Kompakt referanse) -->
-    <details class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-xs">
-      <summary
-        class="font-medium text-slate-700 cursor-pointer hover:text-slate-900 transition flex items-center justify-between">
+    <details class="guidelines-details">
+      <summary>
         <span>Språkregler fra Sámi Giellagáldu (Riektačállinrávvagat 2019) &amp; NRK Sámi Giellagiehtagirji</span>
-        <span class="text-slate-400 text-[11px]">Vis veiledning &darr;</span>
       </summary>
-      <div
-        class="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-slate-600 leading-relaxed pt-2 border-t border-slate-100">
-        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-          <p class="font-semibold text-slate-800 mb-1">1. Verbspråk &amp; aktiv form</p>
+      <div class="guidelines-grid">
+        <div class="guideline-item">
+          <p class="guideline-head">1. Verbspråk &amp; aktiv form</p>
           <p>Unngå substantivsyke. Gjør tunge substantiv om til verbavledninger (<em>-goahtit, -stit, -lit</em>).
             Passive setninger på <em>-(oj)uvvot</em> skrives om til aktiv når den handlende er kjent.</p>
         </div>
-        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-          <p class="font-semibold text-slate-800 mb-1">2. Su vs. iežas &amp; tallord</p>
+        <div class="guideline-item">
+          <p class="guideline-head">2. Su vs. iežas &amp; tallord</p>
           <p>Bruk <em>iežas/iežaset</em> når det viser tilbake til setningens subjekt. Etter tall over 1 skal
             substantivet stå i entall genitiv (<em>guokte olbmo bohte</em>). Tall under 1 mill. skrives i ett ord
             (<em>čiežalogigolbma</em>).</p>
         </div>
-        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-          <p class="font-semibold text-slate-800 mb-1">3. Spørrepartikler &amp; reksjon</p>
+        <div class="guideline-item">
+          <p class="guideline-head">3. Spørrepartikler &amp; reksjon</p>
           <p>Bruk <em>-go</em> i indirekte spørsmål (<em>In dieđe boahtágo</em>), aldri <em>jos</em>. Bruk <em>vai</em>
             i spørsmål, ikke <em>dahje</em>. Sjekk riktig kasusstyring for verb (illativ for <em>liikot</em>, lokativ
             for <em>ballat</em>).</p>
         </div>
-        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-          <p class="font-semibold text-slate-800 mb-1">4. Sammensatte ord &amp; bindestrek</p>
+        <div class="guideline-item">
+          <p class="guideline-head">4. Sammensatte ord &amp; bindestrek</p>
           <p>Bindestrek ved navn, tall, forkortelser (<em>Elle-oambealli, 25-jahkásaš, e-boasta</em>). Mellomrom foran
             bindestrek ved flerords forledd (<em>Min Áigi -aviisa, New Yorka -mátki</em>). Fellesledd: <em>mánáid- ja
               nuoraidskuvla</em>.</p>
         </div>
-        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-          <p class="font-semibold text-slate-800 mb-1">5. Tegnsetting, tall &amp; sitattegn</p>
+        <div class="guideline-item">
+          <p class="guideline-head">5. Tegnsetting, tall &amp; sitattegn</p>
           <p>Komma etter foranstilt leddsetning (<em>Go áhčči boahtá, de...</em>) og foran <em>muhto</em>. Typografiske
-            sitattegn <em>”...”</em>. Tankestrek uten mellomrom ved intervaller (<em>1995–1997, 8–10 km</em>). Mellomrom
-            før prosent (<em>25 %</em>).</p>
+            sitattegn <em>”...”</em> (U+201D). Tankestrek uten mellomrom ved intervaller (<em>1995–1997, 8–10 km</em>).
+            Mellomrom før prosent (<em>25 %</em>).</p>
         </div>
-        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-          <p class="font-semibold text-slate-800 mb-1">6. Store/små forbokstaver &amp; lånord</p>
+        <div class="guideline-item">
+          <p class="guideline-head">6. Store/små forbokstaver &amp; lånord</p>
           <p>Liten forbokstav på stillinger (<em>direktevra, stáhtaministtar</em>), språk, nasjonaliteter og epoker.
             Fremmedord på <em>-iija</em> har ikke stadieveksling. Stedsnavn ender aldri på <em>-iija</em>
             (<em>Tansania</em>).</p>
@@ -337,449 +367,7 @@
 
   </main>
 
-  <script>
-    const sourceEl = document.getElementById('sourceText');
-    const targetEl = document.getElementById('targetText');
-    const statusText = document.getElementById('statusText');
-    const keyInput = document.getElementById('geminiKeyInput');
-    const modelSelect = document.getElementById('geminiModel');
-    const badgeEl = document.getElementById('pipelineBadge');
-    const headerModelBadge = document.getElementById('headerModelBadge');
-    const headerModelLabel = document.getElementById('headerModelLabel');
-    const clearBtn = document.getElementById('clearBtn');
-    const targetCount = document.getElementById('targetCount');
-
-    let timerInterval = null;
-    let startTime = 0;
-    let currentSourceLang = 'nor';
-
-    function setSourceLang(lang) {
-      currentSourceLang = lang;
-      const langs = ['nor', 'swe', 'fin', 'eng', 'sme'];
-      langs.forEach(l => {
-        const btn = document.getElementById('btnLang' + l.charAt(0).toUpperCase() + l.slice(1));
-        if (!btn) return;
-        if (l === lang) {
-          btn.className = "px-2.5 py-1 rounded-md text-slate-900 bg-white shadow-sm font-semibold transition";
-        } else {
-          btn.className = "px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition";
-        }
-      });
-
-      const translateBtn = document.getElementById('translateBtn');
-      const targetHeaderLabel = document.getElementById('targetHeaderLabel');
-      const tabBtnTartuLabel = document.getElementById('tabBtnTartuLabel');
-      const stepPill1 = document.getElementById('stepPill1');
-
-      if (lang === 'sme') {
-        sourceEl.placeholder = "Čále dahje liibme davvisámegiel teavstta dása (gielladikšun ja divvun)...";
-        targetEl.placeholder = "Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...";
-        translateBtn.innerHTML = `<span>Gielladikšun ja divvun</span>`;
-        if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella (Vasket)";
-        if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Opprinnelig tekst";
-        if (stepPill1) stepPill1.textContent = "1. Klargjøring";
-      } else if (lang === 'swe') {
-        sourceEl.placeholder = "Skriv eller klistra in svensk text här...";
-        targetEl.placeholder = "Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...";
-        translateBtn.innerHTML = `<span>Jorgalit ja dárkkistit</span>`;
-        if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella";
-        if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Råutkast (TartuNLP swe→sme)";
-        if (stepPill1) stepPill1.textContent = "1. TartuNLP (swe)";
-      } else if (lang === 'fin') {
-        sourceEl.placeholder = "Kirjoita tai liitä suomenkielinen teksti tähän...";
-        targetEl.placeholder = "Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...";
-        translateBtn.innerHTML = `<span>Jorgalit ja dárkkistit</span>`;
-        if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella";
-        if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Råutkast (TartuNLP fin→sme)";
-        if (stepPill1) stepPill1.textContent = "1. TartuNLP (fin)";
-      } else if (lang === 'eng') {
-        sourceEl.placeholder = "Type or paste English text here...";
-        targetEl.placeholder = "Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...";
-        translateBtn.innerHTML = `<span>Jorgalit ja dárkkistit</span>`;
-        if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella";
-        if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Råutkast (TartuNLP eng→sme)";
-        if (stepPill1) stepPill1.textContent = "1. TartuNLP (eng)";
-      } else {
-        sourceEl.placeholder = "Skriv eller lim inn norsk tekst her...";
-        targetEl.placeholder = "Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...";
-        translateBtn.innerHTML = `<span>Jorgalit ja dárkkistit</span>`;
-        if (targetHeaderLabel) targetHeaderLabel.textContent = "Davvisámegiella";
-        if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = "Råutkast (TartuNLP nor→sme)";
-        if (stepPill1) stepPill1.textContent = "1. TartuNLP (nor)";
-      }
-    }
-
-    // Hent lagret API-nøkkel
-    if (localStorage.getItem('sami_gemini_key')) {
-      keyInput.value = localStorage.getItem('sami_gemini_key');
-    }
-    keyInput.addEventListener('change', () => {
-      localStorage.setItem('sami_gemini_key', keyInput.value.trim());
-      loadAvailableModels();
-    });
-
-    modelSelect.addEventListener('change', () => {
-      headerModelLabel.textContent = modelSelect.value;
-    });
-
-    function toggleSettings() {
-      const panel = document.getElementById('settingsPanel');
-      panel.classList.toggle('hidden');
-    }
-
-    function countWords(str) {
-      const trimmed = str.trim();
-      return trimmed ? trimmed.split(/\s+/).length : 0;
-    }
-
-    function updateCounts() {
-      const sVal = sourceEl.value;
-      const sWords = countWords(sVal);
-      document.getElementById('charCount').textContent = `${sWords} ord \u2022 ${sVal.length} tegn`;
-      clearBtn.classList.toggle('hidden', sVal.length === 0);
-
-      const tVal = targetEl.value;
-      const tWords = countWords(tVal);
-      targetCount.textContent = `${tWords} ord \u2022 ${tVal.length} tegn`;
-    }
-
-    sourceEl.addEventListener('input', updateCounts);
-    targetEl.addEventListener('input', updateCounts);
-
-    sourceEl.addEventListener('keydown', (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        runPipeline();
-      }
-    });
-
-    function clearSource() {
-      sourceEl.value = '';
-      updateCounts();
-      sourceEl.focus();
-    }
-
-    function loadExample() {
-      if (currentSourceLang === 'sme') {
-        sourceEl.value = "Ášši meannuduvvui suohkanstivrras ikte, muhto in dieđe jos 5 olbmot bohtet ihttin dahje bearjadaga. Mii eat sáhte váldit badjelasamet lasi barggu 25%.";
-      } else if (currentSourceLang === 'swe') {
-        sourceEl.value = "Länsstyrelsen har gett tillstånd för björnjakt. Ärendet behandlades av kommunfullmäktige i går, men jag vet inte om fem personer kommer i morgon eller på fredag.";
-      } else if (currentSourceLang === 'fin') {
-        sourceEl.value = "Aluehallintovirasto on myöntänyt karhun kaatoluvan. Kunnanvaltuusto käsitteli asiaa eilen, mutta en tiedä, tuleeko viisi henkilöä huomenna vai perjantaina.";
-      } else if (currentSourceLang === 'eng') {
-        sourceEl.value = "The County Governor has granted a license to cull a bear. The municipal council discussed the matter yesterday, but I do not know if five people will arrive tomorrow or on Friday.";
-      } else {
-        sourceEl.value = "Statsforvalteren har gitt fellingstillatelse på bjørn. Saken ble behandlet av kommunestyret i går, men jeg vet ikke om fem personer kommer i morgen eller på fredag.";
-      }
-      updateCounts();
-    }
-
-    async function copyResult() {
-      const textToCopy = document.getElementById('targetText').value;
-      if (!textToCopy) return;
-      const copyBtn = document.getElementById('copyBtn');
-      const originalText = copyBtn.textContent;
-      try {
-        await navigator.clipboard.writeText(textToCopy);
-      } catch (e) {
-        // Fallback for eldre nettlesere
-        const tempEl = document.createElement('textarea');
-        tempEl.value = textToCopy;
-        tempEl.style.position = 'fixed';
-        tempEl.style.opacity = '0';
-        document.body.appendChild(tempEl);
-        tempEl.focus();
-        tempEl.select();
-        document.execCommand('copy');
-        document.body.removeChild(tempEl);
-      }
-      copyBtn.textContent = "Kopiert!";
-      copyBtn.classList.add('text-emerald-600');
-      statusText.textContent = "Kopiert til utklippstavlen.";
-      setTimeout(() => {
-        copyBtn.textContent = originalText;
-        copyBtn.classList.remove('text-emerald-600');
-      }, 1800);
-    }
-
-    function applySuggestion(oldWord, newWord) {
-      targetEl.value = targetEl.value.replace(oldWord, newWord);
-      updateCounts();
-      recheckDivvun();
-    }
-
-    function switchTab(tab) {
-      const tabs = ['improvements', 'divvun', 'tartu'];
-      tabs.forEach(t => {
-        const btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
-        const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
-        if (t === tab) {
-          btn.className = "px-3 py-2.5 text-xs font-semibold border-b-2 border-indigo-600 text-indigo-700 flex items-center space-x-1.5 transition";
-          content.classList.remove('hidden');
-        } else {
-          btn.className = "px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 flex items-center space-x-1.5 transition";
-          content.classList.add('hidden');
-        }
-      });
-    }
-
-    async function loadAvailableModels() {
-      const key = keyInput.value.trim();
-      const url = key ? `/api/config?api_key=${encodeURIComponent(key)}` : '/api/config';
-      try {
-        const resp = await fetch(url);
-        const cfg = await resp.json();
-        if (cfg.has_env_key) {
-          keyInput.placeholder = "Aktiv fra .env (kan overstyres her)";
-        }
-        if (cfg.available_models && cfg.available_models.length > 0) {
-          const preferred = 'gemini-3.1-pro-preview';
-          modelSelect.innerHTML = cfg.available_models.map(m =>
-            `<option value="${m.id}">${m.id} (${m.display_name})</option>`
-          ).join('');
-          if (cfg.available_models.some(m => m.id === preferred)) {
-            modelSelect.value = preferred;
-          } else if (cfg.env_model && cfg.available_models.some(m => m.id === cfg.env_model)) {
-            modelSelect.value = cfg.env_model;
-          }
-          headerModelLabel.textContent = modelSelect.value;
-          headerModelBadge.classList.remove('hidden');
-          statusText.textContent = `Modeller lastet (${modelSelect.value}).`;
-        }
-      } catch (e) {
-        console.warn("Kunne ikke hente modeller:", e);
-      }
-    }
-
-    loadAvailableModels();
-
-    function updateProgressUI(step, percent, title, detail, done = false) {
-      const container = document.getElementById('progressContainer');
-      const bar = document.getElementById('progressBar');
-      const titleEl = document.getElementById('progressTitle');
-      const detailEl = document.getElementById('progressDetail');
-      const pctEl = document.getElementById('progressPercent');
-      const spinner = document.getElementById('progressSpinner');
-
-      container.classList.remove('hidden');
-      bar.style.width = `${percent}%`;
-      pctEl.textContent = `${percent}%`;
-      if (title) titleEl.textContent = title;
-      if (detail) detailEl.textContent = detail;
-
-      if (done) {
-        spinner.classList.add('hidden');
-        bar.classList.remove('bg-indigo-600');
-        bar.classList.add('bg-emerald-500');
-      } else {
-        spinner.classList.remove('hidden');
-        bar.classList.add('bg-indigo-600');
-        bar.classList.remove('bg-emerald-500');
-      }
-
-      for (let i = 1; i <= 4; i++) {
-        const pill = document.getElementById(`stepPill${i}`);
-        if (!pill) continue;
-        if (done || i < step) {
-          pill.className = "text-emerald-600 font-semibold";
-        } else if (i === step) {
-          pill.className = "text-indigo-600 font-bold underline";
-        } else {
-          pill.className = "text-slate-400";
-        }
-      }
-    }
-
-    function renderErrors(errs) {
-      const box = document.getElementById('divvunErrorsBox');
-      const badgeCount = document.getElementById('badgeDivvunCount');
-      const count = errs ? errs.length : 0;
-      badgeCount.textContent = count;
-
-      if (count === 0) {
-        badgeCount.className = "px-1.5 py-0.2 bg-emerald-100 text-emerald-700 text-[10px] rounded-full font-bold";
-        box.innerHTML = `<div class="p-3 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-100 text-xs">Ingen gjenstående feil funnet av Divvun!</div>`;
-        return;
-      }
-      badgeCount.className = "px-1.5 py-0.2 bg-amber-100 text-amber-800 text-[10px] rounded-full font-bold";
-      box.innerHTML = errs.map(e => {
-        const safeErr = (e.error_text || '').replace(/'/g, "\\'");
-        const suggs = (e.suggestions || []).map(s => {
-          const safeSugg = s.replace(/'/g, "\\'");
-          return `<button onclick="applySuggestion('${safeErr}', '${safeSugg}')" class="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-medium mr-1 mt-1 border border-indigo-200 transition">${s}</button>`;
-        }).join('');
-        return `
-          <div class="p-2.5 bg-amber-50/70 rounded-lg border border-amber-200 text-xs">
-            <div class="font-semibold text-amber-900">"${e.error_text}" &mdash; ${e.title || e.error_code}</div>
-            <div class="text-slate-600 mt-0.5">${e.description || ''}</div>
-            ${suggs ? `<div class="mt-1">${suggs}</div>` : ''}
-          </div>
-        `;
-      }).join('');
-    }
-
-    function renderTips(improvements, tips) {
-      const box = document.getElementById('languageTipsBox');
-      const badgeCount = document.getElementById('badgeImprovementsCount');
-      let html = '';
-      let totalCount = 0;
-
-      if (improvements && improvements.length > 0) {
-        totalCount += improvements.length;
-        html += improvements.map(imp => `
-          <div class="p-2.5 bg-indigo-50/60 rounded-lg border border-indigo-100 text-xs text-slate-700">
-            <span class="font-semibold text-indigo-900">Språkvask:</span> ${imp}
-          </div>
-        `).join('');
-      }
-      if (tips && tips.length > 0) {
-        totalCount += tips.length;
-        html += tips.map(t => `
-          <div class="p-2.5 bg-rose-50/70 rounded-lg border border-rose-200 text-xs">
-            <div class="font-semibold text-rose-900">${t.rule} <span class="text-[10px] text-rose-600">(${t.reference})</span></div>
-            <div class="text-slate-700 mt-0.5">${t.message}</div>
-          </div>
-        `).join('');
-      }
-      badgeCount.textContent = totalCount;
-
-      if (!html) {
-        html = `<div class="p-3 bg-slate-50 text-slate-600 rounded-lg border border-slate-100 text-xs">Teksten oppfyller alle sjekkpunkter fra NRK Sámi Giellagiehtagirji.</div>`;
-      }
-      box.innerHTML = html;
-    }
-
-    function displayFinalData(data) {
-      targetEl.value = data.step3_final_text || '';
-      updateCounts();
-      document.getElementById('tartuRawBox').textContent = data.step1_tartu_raw || '';
-      document.getElementById('pipelineDetails').classList.remove('hidden');
-
-      badgeEl.classList.remove('hidden', 'bg-emerald-100', 'text-emerald-800', 'bg-amber-100', 'text-amber-800');
-      const isSami = (data.source_lang === 'sme');
-
-      if (data.llm_active) {
-        badgeEl.textContent = isSami ? `Vasket: Gemini (${data.used_model}) + Divvun` : `Gemini (${data.used_model}) + Divvun`;
-        badgeEl.classList.add('bg-emerald-100', 'text-emerald-800');
-      } else {
-        badgeEl.textContent = isSami ? `Kun Divvun-retting` : `Tartu + Divvun`;
-        badgeEl.classList.add('bg-amber-100', 'text-amber-800');
-      }
-
-      if (data.used_model) {
-        document.getElementById('usedModelLabel').textContent = `Modell: ${data.used_model}`;
-        headerModelLabel.textContent = data.used_model;
-      }
-
-      const errsToShow = (data.final_divvun_errors && data.final_divvun_errors.length > 0)
-        ? data.final_divvun_errors
-        : [];
-
-      renderErrors(errsToShow);
-      renderTips(data.step3_improvements, data.language_tips);
-
-      statusText.textContent = data.llm_active
-        ? (isSami ? `Språkvasket med ${data.used_model}` : `Fullført med ${data.used_model}`)
-        : `Fullført (uten Gemini)`;
-
-      // Vis automatisk fanen med forbedringer hvis det finnes noen
-      switchTab('improvements');
-    }
-
-    async function runPipeline() {
-      const text = sourceEl.value.trim();
-      if (!text) return;
-
-      const btn = document.getElementById('translateBtn');
-      btn.disabled = true;
-      const isSami = (currentSourceLang === 'sme');
-      btn.innerHTML = isSami ? `<span>Språkvasker...</span>` : `<span>Oversetter...</span>`;
-
-      startTime = Date.now();
-      const timerEl = document.getElementById('progressTimer');
-      if (timerInterval) clearInterval(timerInterval);
-      timerInterval = setInterval(() => {
-        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-        timerEl.textContent = `${elapsed}s`;
-      }, 100);
-
-      const startMsg = isSami ? "Starter språkvask og korrektur..." : "Starter oversettelse...";
-      updateProgressUI(1, 5, startMsg, "Sender tekst til server...", false);
-
-      try {
-        const resp = await fetch('/api/translate-stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text,
-            source_lang: currentSourceLang,
-            use_llm: document.getElementById('useLlm').checked,
-            auto_apply_divvun: document.getElementById('autoApplyDivvun').checked,
-            api_key: keyInput.value.trim() || null,
-            model: modelSelect.value
-          })
-        });
-
-        if (!resp.ok) {
-          throw new Error(`HTTP ${resp.status}`);
-        }
-
-        const reader = resp.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop();
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            const msg = JSON.parse(line);
-            if (msg.type === 'progress') {
-              updateProgressUI(msg.step, msg.percent, msg.title, msg.detail, false);
-              statusText.textContent = msg.title;
-            } else if (msg.type === 'result') {
-              const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
-              updateProgressUI(4, 100, `Fullført på ${totalSec}s`, "Alle trinn er fullført.", true);
-              displayFinalData(msg.data);
-            }
-          }
-        }
-      } catch (err) {
-        statusText.textContent = "Feil: " + err.message;
-        updateProgressUI(1, 100, "Feil under oversettelse", err.message, true);
-      } finally {
-        if (timerInterval) clearInterval(timerInterval);
-        btn.disabled = false;
-        btn.innerHTML = (currentSourceLang === 'sme')
-          ? `<span>Språkvask &amp; korriger</span>`
-          : `<span>Jorgalit ja dárkkistit</span>`;
-      }
-    }
-
-    async function recheckDivvun() {
-      const text = targetEl.value.trim();
-      if (!text) return;
-      statusText.textContent = "Sjekker med Divvun...";
-      try {
-        const resp = await fetch('/api/proofread', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text })
-        });
-        const data = await resp.json();
-        document.getElementById('pipelineDetails').classList.remove('hidden');
-        renderErrors(data.errs);
-        renderTips([], data.language_tips);
-        switchTab('divvun');
-        statusText.textContent = `Divvun-sjekk fullført (${data.errs.length} merknader).`;
-      } catch (err) {
-        statusText.textContent = "Kunne ikke nå Divvun API.";
-      }
-    }
-  </script>
+  <script type="module" src="/static/app.js"></script>
 </body>
 
 </html>
