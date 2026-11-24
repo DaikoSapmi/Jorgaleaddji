@@ -21,6 +21,7 @@ logger = logging.getLogger("jorgaleaddji")
 
 TARTU_API_URL = "https://api.tartunlp.ai/translation/v2"
 DIVVUN_GRAMMAR_URL = "https://api-giellalt.uit.no/grammar/se"
+DIVVUN_SPELLER_URL = "https://api-giellalt.uit.no/speller/se"
 
 DEFAULT_GEMINI_MODEL = "gemini-4-argon"
 FAST_DIVVUN_PASS_MODEL = "gemini-4-hydrogen"
@@ -177,88 +178,106 @@ VALID_IIJA_LOANWORDS = {
     "terapiija",
 }
 
-CORE_SAMI_NORMS_PROMPT = """
-Du arbeider etter de offisielle normene for nordsamisk (davvisámegiella):
-- Sámediggi & Sámi Giellagáldu: Riektačállinrávvagat (reviderejuvvon 2019)
-- NRK Sámi Giellagiehtagirji
-- UiT Giellatekno og Oahpa-grammatikken
+GIELLAVERDDE_SKILL_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), ".agent", "skills", "giellaverdde"
+)
+GIELLAVERDDE_REFS_DIR = os.path.join(GIELLAVERDDE_SKILL_DIR, "references")
 
-Følg disse normene konsekvent:
 
-1. FULLSTENDIGHET OG AVSNITTSSTRUKTUR:
-   Ta med ALLE avsnitt, overskrifter, sitater, tall og fakta fra kildeteksten. Behold nøyaktig samme avsnittsinndeling – ikke slå sammen eller utelat avsnitt.
+def _strip_yaml_frontmatter(text: str) -> str:
+    if text.startswith("---"):
+        parts = text.split("---", 2)
+        if len(parts) == 3:
+            return parts[2].lstrip("\r\n")
+    return text
 
-2. VEARBAGIELLA (Verbspråk fremfor substantivsyke):
-   Bruk aktive samiske verb og naturlige verbavledninger (-goahtit, -stit, -lit, -hit, -ut, -nit, -odit, -muvvat) fremfor tunge substantivuttrykk.
-   Eks.: "Statsforvalteren har gitt fellingstillatelse på bjørn" → "Stáhtahálddašeaddji lea addán lobi báhčit guovžža" eller "lea suovvan báhčit guovžža".
 
-3. AKTIIVA GIELLA (Aktivt språk):
-   Hvis en passiv setning på -(oj)uvvot nevner hvem som utfører handlingen (agens), SKAL setningen snus til aktiv ("Ášši meannuduvvui suohkanstivrras" → "Suohkanstivra meannudii ášši").
-   Passiv med -hallat brukes kun når handlingen er uheldig for den som rammes, med agens i illativ ("Áhkku vuojáhalai boastabiilii").
+def list_giellaverdde_references() -> List[str]:
+    if not os.path.isdir(GIELLAVERDDE_REFS_DIR):
+        return []
+    return sorted(
+        f for f in os.listdir(GIELLAVERDDE_REFS_DIR)
+        if f.endswith(".md") and os.path.isfile(os.path.join(GIELLAVERDDE_REFS_DIR, f))
+    )
 
-4. SU vs. IEŽAS (Refleksivt pronomen):
-   Bruk refleksivt pronomen (iežan, iežat, iežas, iežame, iežade, iežaska, iežamet, iežadet, iežaset) når eieren er setningens subjekt ("Son borrá iežas njálgáid").
-   Bruk su/sudno/sin KUN når det viser til noen andre enn subjektet ("Son borrá su njálgáid"). Habitiv følger samme regel ("Mus lea alddán dállu", "Sudnos lea alddiska biila").
 
-5. LOHKU + SUBSTANTIIVA & LOGUID SOJAHEAPMI (Tallord og tallbøying):
-   - Etter tallord over 1 (2, 3... samt moadde, máŋga, galle) står substantivet i ENTALL GENITIV ("guokte olbmo", "vihtta viesu"), mens verbet står i flertall ("Guokte olbmo bohte").
-   - I entall lokativ og illativ står tallordet i genitiv mens substantivet står i lokativ/illativ ("dan guovtti mánnái", "golmma mánás").
-   - Tall fra 1 til 10 skrives med bokstaver i løpende tekst ("ovtta", "guokte", "golbma"...).
-   - Tall under 1 million skrives i ETT ord med bokstaver ("čiežalogigolbma", "guoktečuođi", "vihttaduhát"), over 1 mill. i to ord ("logi miljovnna").
-   - Tall med sifre bøyes med kolon uten mellomrom: "16:i" (illativ), "16:s" (lokativ), "16:in" (komitativ), "16:t" (nominativ flertall).
-   - Ordenstall bøyes med -da/-dii/-dis: "16." (nominativ), "16:da" (gen/akk), "16:dii" (illativ), "16:dis" (lokativ).
-   - Alltid mellomrom før prosenttegn og måleenheter ("25 %", "3,5 %", "10 kg", "50 km"). I løpende tekst skrives "proseantamearri" (aldri "%-mearri").
+def read_giellaverdde_reference(filename: str, max_chars: int = 45000) -> str:
+    """Leser en trygt hvitelistet referansefil fra .agent/skills/giellaverdde/references/."""
+    clean_name = os.path.basename((filename or "").strip())
+    available = list_giellaverdde_references()
+    if clean_name not in available:
+        return (
+            f"Fant ikke '{filename}'. Tilgjengelige referansefiler: "
+            + ", ".join(available)
+        )
+    path = os.path.join(GIELLAVERDDE_REFS_DIR, clean_name)
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            content = fh.read()
+        if len(content) > max_chars:
+            content = content[:max_chars] + "\n\n[... avkortet etter maks lengde ...]"
+        return content
+    except Exception as exc:
+        logger.warning("Kunne ikke lese giellaverdde-referanse %s: %s", clean_name, exc)
+        return f"Feil ved lesing av {clean_name}: {exc}"
 
-6. GOALLOSSÁNIT & SÁTNEGIHPUT (Sammensatte ord, Riektačállinrávvagat 2019):
-   - Skrives i ett ord når forleddet er nominativ entall ("gilvoviehkan", "lávllagirji", "bohccobiergu").
-   - Bindestrek ved navn, tall, bokstav, forkortelse eller fremmedord ("Elle-oambealli", "1950-lohku", "25-jahkásaš", "C-vitamiidna", "e-boasta", "ON-beaivi").
-   - MELLOMROM FORAN BINDESTREK ved flerords forledd (syntagme): "Min Áigi -aviisa", "New Yorka -mátki", "Boeing 737 -girdi", "Paulus Utsi -áššedovdi". (Men "Ánne-Máret-muoŧŧá").
-   - Felles ledd: "mánáid- ja nuoraidskuvla", "sáme-, suoma- ja ruoŧagiella".
-   - Retnings- og stedsord: "duogábealde", "vuolábeallai" (ett ord ved sammensetningsform), men "Eanodaga bealde", "dán beallai", "Ruošša beale" (to ord ved genitiv).
 
-7. GASKAMEARKKAT & TEGNSETTING (Riektačállinrávvagat 2019):
-   - Komma (Rihkku):
-     * Alltid komma etter foranstilt leddsetning ("Go áhčči boahtá, de mii herskkostallat", "Jos mii eat livčče vuolgán, de...").
-     * Komma foran "muhto" ("Son livččii viššal, muhto sus ii leat dilli").
-     * Komma ved apposisjoner og presiseringer ("Iŋgá, ovddit jagiid vuoiti, bođii...").
-     * ALDRI komma mellom setningsledd med felles subjekt eller verbal ("Elle finai vuos buvddas ja de manai ruoktot").
-     * ALDRI komma i helt korte leddsetninger ("Dat vulggii go mun bohten").
-   - Sitattegn (Aisttonmearkkat): Bruk alltid nordsamiske typografiske sitattegn ”...” (U+201D både ved start og slutt – ikke engelske “...” og ikke norske «...»). Sitat i sitat bruker ’...’.
-   - Tankestrek (Jurddasáhcu –): Uten mellomrom ved intervaller og strekninger ("1995–1997", "Romsa–Ivgubahta 120 km", "siidduin 25–100").
-   - Skråstrek (/): Betyr "dahje" (eller), ALDRI "ja" ("mánát/nuorat" = mánát dahje nuorat).
+def load_giellaverdde_skill_core() -> str:
+    """Laster SKILL.md + 01-nrk-standarda.md fra ./.agent/skills/giellaverdde som systeminstruks."""
+    skill_path = os.path.join(GIELLAVERDDE_SKILL_DIR, "SKILL.md")
+    if not os.path.isfile(skill_path):
+        logger.warning("Fant ikke giellaverdde SKILL.md på %s; bruker minimal reserveinstruks.", skill_path)
+        return (
+            "Du er Giellaverdde, en ekspert på nordsamisk rettskriving og NRKs språkstandard. "
+            "Sørg for korrekt nordsamisk syntaks, aktivt verbspråk, riktig kasusstyring og tegnsetting."
+        )
 
-8. STUORA JA UNNA ÁLGOBUSTÁVAT (Store og små forbokstaver):
-   - Liten forbokstav på stillinger og titler ("direktevra Hætta", "stáhtaministtar", "presideanta", "gonagas Harald", "sátnejođiheaddji"), nasjonaliteter/folkeslag/språk ("sápmelaččat", "davvisámegiella"), ukedager/måneder/høytider ("bearjadat", "guovvamánnu", "beassážat") og historiske hendelser/epoker ("eváhkkodálvi", "nubbi máilmmisoahti").
-   - Liten forbokstav etter kolon når det ikke følger en fullstendig selvstendig setning; stor forbokstav ved fullstendig direkte replikk etter kolon.
-   - Stor forbokstav på egennavn på personer, institusjoner, kommuner og organisasjoner ("Sámediggi", "Sámi allaskuvla", "Kárášjoga gielda").
+    with open(skill_path, "r", encoding="utf-8") as fh:
+        skill_text = _strip_yaml_frontmatter(fh.read()).strip()
 
-9. VIERISSÁNIT & EARÁ GIELAID NAMAID SOJAHEAPMI (Fremmedord og navn):
-   - Utenlandske personnavn skrives slik bæreren skriver dem, og bøyes med samiske endelser ("Klara : Klaras : Klarai", "Per : Pera : Perii : Peras", "Astrid : Astrida : Astridii").
-   - Fremmedord på -iija ("filosofiija", "biologiija", "energiija") har INGEN stadieveksling ("filosofiijas", "energiijain").
-   - Stedsnavn ender ALDRI på -iija ("Tansania", "Italia", "Spania" – aldri Tansaniija).
-   - Unngå fremmed binde-s i sammensetninger ("eksámenbargu", ikke eksamensbargu).
+    nrk_std_path = os.path.join(GIELLAVERDDE_REFS_DIR, "01-nrk-standarda.md")
+    nrk_std_text = ""
+    if os.path.isfile(nrk_std_path):
+        with open(nrk_std_path, "r", encoding="utf-8") as fh:
+            nrk_std_text = fh.read().strip()
 
-10. LAKTAPARTIHKKALAT (Enklitiske partikler):
-    - Faste leksemer skrives i ett ord: "dieđusge", "dattetge", "iešguhtege", "oktage", "veaháge", "veahášge", "makkárge", "matge", "miige", "mihkkege", "movtge", "goitge", "almmatge", "juogo", "jusgo".
-    - Spørrepartikkelen -go henger fast på verbet ("Boahtágo son odne?").
-    - Konjunksjonen "go" skrives frittstående ("Ánte lea boarráseabbo go Risten", aldri "enngo").
-    - Bruk ALDRI "jos" i indirekte spørsmål ("In dieđe boahtágo son odne", aldri "jos").
-
-11. SPØRREORD & KONJUNKSJONER (Dahje vs. Vai):
-    - Bruk "vai" i spørresetninger ("Boađátgo ihttin vai bearjadaga?").
-    - Bruk "dahje" i fortellende setninger.
-
-12. EKTUI vs. HÁRRÁI / DÁFUS / ILLATIV:
-    - "Ektui" brukes kun ved reell sammenligning ("Áhčis ektui son lea stuoris"). Ellers brukes "hárrái", "dáfus" eller ren illativ ("Maid don dajat dien áššái?").
-
-13. REKŠUVDNAVEARBBAT (Kasusstyring):
-    - Illativ: liikot, luohttit, álgit, guoskat, heivet, suhttat, darvánit.
-    - Lokativ: beroštit, ballat, heaitit, dolkat, váruhit, nohkkot.
-    - Komitativ: humadit, háleštit.
-
-14. DATO:
-    - Måned i genitiv + ordenstall + beaivvi ("geassemánu 7. beaivvi 2026" eller "geassemánu 7. b. 2026").
+    available_refs = ", ".join(list_giellaverdde_references())
+    adapter_note = f"""
+# TILPASNING TIL PIPELINE-FORMAT (VIKTIG)
+1. Du kjører som en integrert del av oversettelses- og korrekturpipelinen **etter første Divvun-sjekk**.
+2. I stedet for å bare skrive en separat rapport i Markdown-formatet over, skal du **direkte anvende** alle relevante regler fra `giellaverdde`-skillen og `references/`-filene for å produsere den ferdige, korrigerte og språkvaskede nordsamiske teksten i JSON-feltet `"final_translation"`.
+3. Ta med ALLE avsnitt, overskrifter, sitater, tall og fakta fra kildeteksten med nøyaktig samme avsnittsinndeling. Sitater beskyttes mot omskriving (bortsett fra rene stavefeil).
+4. **Progressive Disclosure via verktøy:** Når du har tilgang til verktøyet `read_giellaverdde_reference`, slå opp de relevante filene i `references/` (tilgjengelige: {available_refs}) før du leverer det endelige svaret – spesielt ved spørsmål om tegnsetting/tall/forkortelser (`02-riektacallinravvagat.md`), syntaks/`su` vs. `iežas`/tallord (`03-syntaksa-ja-kongrueansa.md`), verb/kasus (`06-vearbbat.md`) eller avledning (`09-suorggideapmi.md`).
+5. I JSON-feltet `"improvements"` skal du gi korte, konkrete punkter på **norsk** som gjengir hvilke råd, rettskrivingsregler og `references/`-filer fra `giellaverdde` du fulgte og rettet etter.
 """.strip()
+
+    parts = [skill_text]
+    if nrk_std_text:
+        parts.append("# LASTET REFERANSE (BAJIMUS VÁLDI): 01-nrk-standarda.md\n\n" + nrk_std_text)
+    parts.append(adapter_note)
+    return "\n\n---\n\n".join(parts)
+
+
+READ_GIELLAVERDDE_TOOL = {
+    "type": "function",
+    "name": "read_giellaverdde_reference",
+    "description": (
+        "Leser en faglig oppslagsfil fra giellaverdde/references/ (for eksempel '02-riektacallinravvagat.md', "
+        "'03-syntaksa-ja-kongrueansa.md', '04-substantiivvat.md', '05-adjektiivvat.md', '06-vearbbat.md', "
+        "'07-dassemolsasupmi.md', '08-oamastangehcosat.md', '09-suorggideapmi.md', '10-essiiva.md') "
+        "for å sjekke eksakte nordsamiske normer før retting."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "filename": {
+                "type": "string",
+                "description": "Eksakt filnavn i references/, f.eks. '03-syntaksa-ja-kongrueansa.md'.",
+            }
+        },
+        "required": ["filename"],
+    },
+}
 
 SOURCE_SPECIFIC_GUIDANCE: Dict[str, str] = {
     "nor": (
@@ -313,13 +332,14 @@ def build_system_instruction(
     glossary: Optional[str] = None,
 ) -> str:
     role_intro = SOURCE_SPECIFIC_GUIDANCE.get(source_lang, SOURCE_SPECIFIC_GUIDANCE["nor"])
-    parts = [role_intro, "", CORE_SAMI_NORMS_PROMPT]
+    skill_core = load_giellaverdde_skill_core()
+    parts = [role_intro, "", skill_core]
     glossary_entries = parse_glossary(glossary)
     if glossary_entries:
         formatted_terms = "\n".join(f"- {src} → {tgt}" for src, tgt in glossary_entries)
         parts.extend([
             "",
-            "15. OBLIGATORISK TERMINOLOGI / ORDLISTE:",
+            "# OBLIGATORISK TERMINOLOGI / ORDLISTE",
             "Bruk konsekvent følgende normerte samiske termer (bøyd i riktig kasus etter setningen) når disse begrepene forekommer:",
             formatted_terms,
         ])
@@ -661,6 +681,99 @@ async def call_divvun_grammar(text: str) -> dict:
             logger.warning("Divvun API nettverksfeil: %s", exc)
             return {"text": text, "errs": [], "api_error": str(exc)}
     return {"text": text, "errs": []}
+
+
+async def call_divvun_speller(text: str) -> List[dict]:
+    """Kaller Divvun GiellaLT Speller API (/speller/se) for siste ord-for-ord rettskrivingstest."""
+    if not text or not text.strip():
+        return []
+    async with borrow_http_client() as client:
+        try:
+            resp = await client.post(
+                DIVVUN_SPELLER_URL,
+                json={"text": text},
+                headers={"Content-Type": "application/json"},
+                timeout=25.0,
+            )
+            if resp.status_code != 200:
+                logger.warning("Divvun Speller API svarte med HTTP %s", resp.status_code)
+                return []
+            data = resp.json()
+        except Exception as exc:
+            logger.warning("Divvun Speller API nettverksfeil: %s", exc)
+            return []
+
+    results = data.get("results") or []
+    speller_errs: List[dict] = []
+    cursor = 0
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        word = item.get("word") or ""
+        if not word:
+            continue
+        idx = text.find(word, cursor)
+        if idx == -1:
+            idx = text.find(word)
+        if idx != -1:
+            cursor = idx + len(word)
+        if item.get("is_correct", True) or idx == -1:
+            continue
+        raw_suggs = item.get("suggestions") or []
+        suggestions = [
+            s["value"]
+            for s in raw_suggs
+            if isinstance(s, dict) and s.get("value")
+        ][:6]
+        speller_errs.append(
+            {
+                "error_text": word,
+                "start_index": idx,
+                "end_index": idx + len(word),
+                "error_code": "speller",
+                "title": "Čállinmeattáhus (Divvun Speller)",
+                "description": "Sátni ii gávdno divvun-sátnerájus.",
+                "suggestions": suggestions,
+                "source": "speller",
+            }
+        )
+    return speller_errs
+
+
+def merge_divvun_errors(grammar_errs: List[dict], speller_errs: List[dict]) -> List[dict]:
+    """Slår sammen grammatikkfeil og stavefeil fra /speller/se uten overlappende duplikater."""
+    merged: List[dict] = []
+    for err in grammar_errs or []:
+        if not isinstance(err, dict):
+            continue
+        entry = dict(err)
+        entry.setdefault("source", "grammar")
+        merged.append(entry)
+
+    for sp_err in speller_errs or []:
+        sp_start = sp_err.get("start_index")
+        sp_end = sp_err.get("end_index")
+        if not isinstance(sp_start, int) or not isinstance(sp_end, int):
+            continue
+        overlaps = False
+        for existing in merged:
+            ex_start = existing.get("start_index")
+            ex_end = existing.get("end_index")
+            if isinstance(ex_start, int) and isinstance(ex_end, int):
+                if sp_start < ex_end and sp_end > ex_start:
+                    # Slå sammen eventuelle ekstra forslag fra speller inn i eksisterende merknad
+                    existing_suggs = list(existing.get("suggestions") or [])
+                    for s in sp_err.get("suggestions") or []:
+                        if s not in existing_suggs:
+                            existing_suggs.append(s)
+                    existing["suggestions"] = existing_suggs[:6]
+                    overlaps = True
+                    break
+        if not overlaps:
+            merged.append(sp_err)
+
+    merged.sort(key=lambda e: e.get("start_index", 0))
+    return merged
 
 
 def _extract_capitalized_source_stems(source_text: str) -> set:
@@ -1018,10 +1131,10 @@ AUTOMATISKE SPRÅKVARSLER (Giellagiehtagirji & Riektačállinrávvagat):
 {json.dumps(local_tips, ensure_ascii=False)}
 
 Oppgave:
-1. Gjennomfør en grundig, men skånsom språkvask og korrektur av den nordsamiske kildeteksten i tråd med Riektačállinrávvagat (2019), NRK Sámi Giellagiehtagirji og UiT Giellatekno/Oahpa.
-2. Forbedre setningsoppbyggingen der det trengs: snu passiv til aktiv når agens er kjent, bruk naturlige verbavledninger fremfor substantivsyke, og kontroller iežas vs. su, partikkelen -go, tallbøying, sammensatte ord og typografiske sitattegn ”...”.
-3. Bevar tekstens opprinnelige mening, tone og eksakte avsnittsinndeling – ikke utelat avsnitt og ikke legg til nytt innhold.
-4. Returner gyldig JSON med nøklene "final_translation" og "improvements" (korte punkter på norsk)."""
+1. Gjennomfør en grundig, men skånsom språkvask og korrektur av den nordsamiske kildeteksten som Giellaverdde (etter `giellaverdde`-skillen).
+2. Slå ved behov opp relevante fagfiler i `references/` med `read_giellaverdde_reference` (f.eks. ved passiv/aktiv, `su` vs. `iežas`, tallbøying, sammensatte ord, tegnsetting eller kasusstyring) og rett teksten i henhold til rådene.
+3. Bevar tekstens opprinnelige mening, tone, sitater og eksakte avsnittsinndeling – ikke utelat avsnitt og ikke legg til nytt innhold.
+4. Returner gyldig JSON med nøklene `"final_translation"` og `"improvements"` (korte punkter på norsk som gjengir hvilke råd og `references/`-regler fra `giellaverdde` du fulgte)."""
 
     lang_cfg = SOURCE_LANGUAGES.get(source_lang, SOURCE_LANGUAGES["nor"])
     lang_label = str(lang_cfg["label_no"]).lower()
@@ -1059,8 +1172,8 @@ AUTOMATISKE SPRÅKVARSLER:
 
 Oppgave:
 1. Lag en presis, naturlig og idiomatisk nordsamisk oversettelse av HELE den {lang_label}e kildeteksten med nøyaktig samme avsnittsinndeling.
-2. {draft_hint} Følg normene fra Sámi Giellagáldu (Riektačállinrávvagat 2019) og NRK Sámi Giellagiehtagirji.
-3. Returner gyldig JSON med nøklene "final_translation" og "improvements" (korte punkter på norsk som forklarer de viktigste språklige grepene)."""
+2. {draft_hint} Slå opp relevante fagfiler i `giellaverdde`-skillens `references/` med `read_giellaverdde_reference` ved behov, og rett i henhold til rådene derfra (med `01-nrk-standarda.md` som øverste myndighet).
+3. Returner gyldig JSON med nøklene `"final_translation"` og `"improvements"` (korte punkter på norsk som gjengir hvilke råd og `references/`-regler fra `giellaverdde` som ble fulgt)."""
 
 
 async def call_gemini_refiner(
@@ -1144,22 +1257,66 @@ async def call_gemini_refiner(
 
         while True:
             try:
-                interaction = await client.aio.interactions.create(
-                    model=candidate_model,
-                    system_instruction=system_instruction,
-                    input=user_prompt,
-                    response_format={
-                        "type": "text",
-                        "mime_type": "application/json",
-                        "schema": RefinementSchema.model_json_schema(),
-                    },
-                    generation_config={
-                        "thinking_level": thinking_level,
-                        "max_output_tokens": 32768,
-                    },
-                )
+                history: List[dict] = [
+                    {
+                        "type": "user_input",
+                        "content": [{"type": "text", "text": user_prompt}],
+                    }
+                ]
+                has_refs = bool(list_giellaverdde_references())
+                tools_arg = [READ_GIELLAVERDDE_TOOL] if has_refs else None
+                consulted_refs: List[str] = []
+                interaction = None
 
-                raw_json = extract_interaction_text(interaction)
+                for _round in range(5):
+                    create_kwargs = {
+                        "model": candidate_model,
+                        "system_instruction": system_instruction,
+                        "store": False,
+                        "input": history,
+                        "response_format": {
+                            "type": "text",
+                            "mime_type": "application/json",
+                            "schema": RefinementSchema.model_json_schema(),
+                        },
+                        "generation_config": {
+                            "thinking_level": thinking_level,
+                            "max_output_tokens": 32768,
+                        },
+                    }
+                    if tools_arg:
+                        create_kwargs["tools"] = tools_arg
+
+                    interaction = await client.aio.interactions.create(**create_kwargs)
+                    steps = getattr(interaction, "steps", None) or []
+                    fc_steps = [s for s in steps if getattr(s, "type", None) == "function_call"]
+                    if not fc_steps:
+                        break
+
+                    for s in steps:
+                        history.append(s.model_dump())
+
+                    for fc in fc_steps:
+                        fc_name = getattr(fc, "name", "")
+                        fc_args = getattr(fc, "arguments", None) or {}
+                        if fc_name == "read_giellaverdde_reference":
+                            fname = str(fc_args.get("filename", ""))
+                            ref_content = read_giellaverdde_reference(fname)
+                            clean_fname = os.path.basename(fname.strip())
+                            if clean_fname and clean_fname not in consulted_refs:
+                                consulted_refs.append(clean_fname)
+                        else:
+                            ref_content = f"Ukjent verktøy: {fc_name}"
+                        history.append(
+                            {
+                                "type": "function_result",
+                                "name": fc_name,
+                                "call_id": getattr(fc, "id", ""),
+                                "result": [{"type": "text", "text": ref_content}],
+                            }
+                        )
+
+                raw_json = extract_interaction_text(interaction) if interaction is not None else ""
                 final_trans = ""
                 improvements: List[str] = []
 
@@ -1174,6 +1331,10 @@ async def call_gemini_refiner(
                         improvements = list(parsed.get("improvements") or [])
 
                 if final_trans and final_trans.strip():
+                    if consulted_refs:
+                        improvements.append(
+                            f"Giellaverdde-oppslag brukt: {', '.join(consulted_refs)}"
+                        )
                     if getattr(interaction, "status", None) == "incomplete":
                         improvements.insert(
                             0,
@@ -1409,6 +1570,10 @@ async def run_translation_pipeline_events(
                 f"Divvun-sluttkontroll: Rettet automatisk {fixed_count} av {initial_err_count} Divvun-merknader i sluttproduktet."
             )
 
+    # Siste ord-for-ord rettskrivingstest via Divvun Speller (/speller/se)
+    speller_errs = await call_divvun_speller(final_text) if final_text.strip() else []
+    merged_final_errs = merge_divvun_errors(final_errs, speller_errs)
+
     final_local_tips = (
         local_heuristic_checks("" if is_sami_source else req.text, final_text)
         if final_text.strip()
@@ -1432,7 +1597,7 @@ async def run_translation_pipeline_events(
         "step3_improvements": llm_result.get("improvements", []),
         "llm_active": llm_succeeded,
         "used_model": llm_result.get("used_model"),
-        "final_divvun_errors": final_errs,
+        "final_divvun_errors": merged_final_errs,
         "language_tips": combined_tips,
     }
 
@@ -1488,14 +1653,18 @@ async def translate_pipeline_stream(
 
 @app.post("/api/proofread")
 async def proofread_only(req: ProofreadRequest):
-    """Lar brukeren kjøre ren Divvun-korrektur + språksjekk når de redigerer den samiske teksten manuelt."""
+    """Lar brukeren kjøre ren Divvun-korrektur + Speller (/speller/se) + språksjekk når de redigerer den samiske teksten manuelt."""
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Teksten er tom.")
-    divvun_res = await call_divvun_grammar(req.text)
+    divvun_res, speller_errs = await asyncio.gather(
+        call_divvun_grammar(req.text),
+        call_divvun_speller(req.text),
+    )
+    merged_errs = merge_divvun_errors(divvun_res.get("errs", []), speller_errs)
     tips = local_heuristic_checks("", req.text)
     return {
         "text": req.text,
-        "errs": divvun_res.get("errs", []),
+        "errs": merged_errs,
         "language_tips": tips,
     }
 

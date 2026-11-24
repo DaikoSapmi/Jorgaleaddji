@@ -220,6 +220,7 @@
             <span id="pipelineBadge" class="pipeline-badge" hidden></span>
           </div>
           <div class="editor-header-tools">
+            <button type="button" id="toggleTargetViewBtn" class="btn-link" hidden>Rediger tekst</button>
             <button type="button" id="recheckDivvunBtn" class="btn-link">Sjekk med Divvun</button>
 
             <span class="copy-wrap">
@@ -242,6 +243,7 @@
         <textarea id="targetText" lang="se" spellcheck="false" rows="11"
           placeholder="Dás oainnát gárvves, gielladikšojuvvon ja korrekturlohkkojuvvon davvisámegiel teavstta..."
           class="editor-textarea"></textarea>
+        <div id="targetInteractiveView" class="target-interactive-view" lang="se" hidden></div>
 
         <div class="editor-footer">
           <span id="targetCount">0 ord &bull; 0 tegn</span>
@@ -366,6 +368,8 @@
     </details>
 
   </main>
+
+  <div id="spellPopover" popover="auto" class="spell-popover"></div>
 
   <script type="module" src="/static/app.js"></script>
 </body>

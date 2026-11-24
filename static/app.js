@@ -99,6 +99,9 @@ const STARTER_GLOSSARY = [
 
 const sourceEl = document.getElementById('sourceText');
 const targetEl = document.getElementById('targetText');
+const targetInteractiveEl = document.getElementById('targetInteractiveView');
+const toggleTargetViewBtn = document.getElementById('toggleTargetViewBtn');
+const spellPopoverEl = document.getElementById('spellPopover');
 const statusText = document.getElementById('statusText');
 const keyInput = document.getElementById('geminiKeyInput');
 const modelSelect = document.getElementById('geminiModel');
@@ -121,6 +124,8 @@ let currentSourceLang = 'nor';
 let activeAbortController = null;
 let lastFocusedEditor = sourceEl;
 let lastDiffBaselineText = '';
+let currentTargetErrors = [];
+let isTargetEditMode = true;
 
 // --- Focusgroup & Scrollability Progressive Enhancement (per modern-web-guidance: tabs) ---
 async function initTabsEnhancements() {
@@ -610,6 +615,179 @@ function renderErrors(errs) {
   }
 }
 
+// --- Interactive Red-Underlined Spellcheck View & Popover Dropdown ---
+function closeSpellPopover() {
+  if (!spellPopoverEl) return;
+  try {
+    if (spellPopoverEl.matches(':popover-open') || spellPopoverEl.classList.contains(':popover-open')) {
+      spellPopoverEl.hidePopover();
+    }
+  } catch {
+    spellPopoverEl.removeAttribute('open');
+  }
+}
+
+function positionPopoverFallback(triggerBtn) {
+  if (CSS.supports('position-area: block-end')) {
+    spellPopoverEl.style.left = '';
+    spellPopoverEl.style.top = '';
+    return;
+  }
+  const rect = triggerBtn.getBoundingClientRect();
+  const popRect = spellPopoverEl.getBoundingClientRect();
+  const margin = 8;
+  let left = rect.left;
+  let top = rect.bottom + 6;
+  if (left + popRect.width > window.innerWidth - margin) {
+    left = Math.max(margin, window.innerWidth - popRect.width - margin);
+  }
+  if (top + popRect.height > window.innerHeight - margin) {
+    top = Math.max(margin, rect.top - popRect.height - 6);
+  }
+  spellPopoverEl.style.left = `${Math.max(margin, left)}px`;
+  spellPopoverEl.style.top = `${Math.max(margin, top)}px`;
+}
+
+function openSpellPopover(triggerBtn, errObj) {
+  if (!spellPopoverEl) return;
+  spellPopoverEl.replaceChildren();
+
+  const head = document.createElement('div');
+  head.className = 'spell-popover-head';
+
+  const wordEl = document.createElement('div');
+  wordEl.className = 'spell-popover-word';
+  wordEl.textContent = errObj.error_text || '';
+  head.appendChild(wordEl);
+
+  const metaEl = document.createElement('div');
+  metaEl.className = 'spell-popover-meta';
+  metaEl.textContent = [errObj.title, errObj.description].filter(Boolean).join(' – ');
+  if (metaEl.textContent) head.appendChild(metaEl);
+
+  spellPopoverEl.appendChild(head);
+
+  const suggestions = Array.isArray(errObj.suggestions) ? errObj.suggestions : [];
+  if (suggestions.length > 0) {
+    const list = document.createElement('div');
+    list.className = 'spell-popover-list';
+    for (const s of suggestions) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'spell-sugg-btn';
+      btn.textContent = s;
+      btn.addEventListener('click', () => {
+        closeSpellPopover();
+        applyDivvunSuggestion(errObj, s);
+      });
+      list.appendChild(btn);
+    }
+    spellPopoverEl.appendChild(list);
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'spell-popover-empty';
+    empty.textContent = 'Ingen forslag fra Divvun.';
+    spellPopoverEl.appendChild(empty);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'spell-popover-actions';
+
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'spell-action-btn';
+  editBtn.textContent = 'Rediger manuelt';
+  editBtn.addEventListener('click', () => {
+    closeSpellPopover();
+    setTargetViewMode(true);
+    targetEl.focus();
+    if (typeof errObj.start_index === 'number' && typeof errObj.end_index === 'number') {
+      targetEl.setSelectionRange(errObj.start_index, errObj.end_index);
+    }
+  });
+  actions.appendChild(editBtn);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'spell-action-btn';
+  closeBtn.textContent = 'Lukk';
+  closeBtn.addEventListener('click', closeSpellPopover);
+  actions.appendChild(closeBtn);
+
+  spellPopoverEl.appendChild(actions);
+
+  try {
+    spellPopoverEl.showPopover({ source: triggerBtn });
+  } catch {
+    spellPopoverEl.showPopover();
+  }
+  requestAnimationFrame(() => positionPopoverFallback(triggerBtn));
+}
+
+function setTargetViewMode(editMode) {
+  closeSpellPopover();
+  isTargetEditMode = editMode;
+  const hasErrors = currentTargetErrors.length > 0 && targetEl.value.trim().length > 0;
+  if (!hasErrors || editMode) {
+    targetEl.hidden = false;
+    targetInteractiveEl.hidden = true;
+    toggleTargetViewBtn.hidden = !hasErrors;
+    toggleTargetViewBtn.textContent = 'Vis markeringer';
+  } else {
+    targetEl.hidden = true;
+    targetInteractiveEl.hidden = false;
+    toggleTargetViewBtn.hidden = false;
+    toggleTargetViewBtn.textContent = 'Rediger tekst';
+  }
+}
+
+function renderTargetInteractiveView(text, errs) {
+  closeSpellPopover();
+  const list = Array.isArray(errs) ? errs : [];
+  const validErrs = list
+    .filter(
+      (e) =>
+        e &&
+        typeof e.start_index === 'number' &&
+        typeof e.end_index === 'number' &&
+        e.start_index >= 0 &&
+        e.end_index > e.start_index &&
+        e.end_index <= text.length
+    )
+    .sort((a, b) => a.start_index - b.start_index);
+
+  currentTargetErrors = validErrs;
+  targetInteractiveEl.replaceChildren();
+
+  if (validErrs.length === 0 || !text) {
+    setTargetViewMode(true);
+    return;
+  }
+
+  let cursor = 0;
+  for (const err of validErrs) {
+    if (err.start_index < cursor) continue;
+    if (err.start_index > cursor) {
+      targetInteractiveEl.appendChild(
+        document.createTextNode(text.slice(cursor, err.start_index))
+      );
+    }
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'spell-mark';
+    trigger.textContent = text.slice(err.start_index, err.end_index);
+    trigger.title = err.title || 'Klikk for staveforslag fra Divvun';
+    trigger.addEventListener('click', () => openSpellPopover(trigger, err));
+    targetInteractiveEl.appendChild(trigger);
+    cursor = err.end_index;
+  }
+  if (cursor < text.length) {
+    targetInteractiveEl.appendChild(document.createTextNode(text.slice(cursor)));
+  }
+
+  setTargetViewMode(false);
+}
+
 function renderTips(improvements, tips) {
   const box = document.getElementById('languageTipsBox');
   const badgeCount = document.getElementById('badgeImprovementsCount');
@@ -797,7 +975,9 @@ function displayFinalData(data) {
     headerModelBadge.classList.add('is-ready');
   }
 
-  renderErrors(data.final_divvun_errors || []);
+  const finalErrs = data.final_divvun_errors || [];
+  renderErrors(finalErrs);
+  renderTargetInteractiveView(finalOut, finalErrs);
   renderTips(data.step3_improvements || [], data.language_tips || []);
 
   statusText.textContent = data.llm_active
@@ -821,6 +1001,7 @@ async function runPipeline() {
   if (!text || activeAbortController) return;
 
   const cfg = LANG_UI[currentSourceLang] || LANG_UI.nor;
+  renderTargetInteractiveView('', []);
   const btn = document.getElementById('translateBtn');
   const btnLabel = document.getElementById('translateBtnLabel');
   btn.disabled = true;
@@ -949,7 +1130,9 @@ async function recheckDivvun() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     document.getElementById('pipelineDetails').hidden = false;
-    renderErrors(data.errs || []);
+    const errs = data.errs || [];
+    renderErrors(errs);
+    renderTargetInteractiveView(targetEl.value, errs);
     renderTips([], data.language_tips || []);
     if (lastDiffBaselineText) {
       renderDiff(lastDiffBaselineText, targetEl.value);
@@ -1049,7 +1232,18 @@ function initApp() {
   clearBtn.addEventListener('click', clearSource);
   document.getElementById('translateBtn').addEventListener('click', runPipeline);
   document.getElementById('recheckDivvunBtn').addEventListener('click', recheckDivvun);
+  toggleTargetViewBtn.addEventListener('click', () => setTargetViewMode(!isTargetEditMode));
+  targetInteractiveEl.addEventListener('dblclick', (event) => {
+    if (!event.target.closest('.spell-mark')) {
+      setTargetViewMode(true);
+      targetEl.focus();
+    }
+  });
   cancelBtn.addEventListener('click', cancelTranslation);
+
+  if (!Object.hasOwn(HTMLElement.prototype, 'popover')) {
+    import('https://unpkg.com/@oddbird/popover-polyfill@latest/dist/popover.min.js').catch(() => {});
+  }
 
   Object.keys(LANG_UI).forEach((lang) => {
     const btn = document.getElementById('btnLang_' + lang);
