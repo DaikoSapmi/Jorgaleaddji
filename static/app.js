@@ -1,5 +1,7 @@
 // Jorgaleaddji & Divvun Studio – Client Application
 
+import { UI_STRINGS } from './ui-strings.js';
+
 const STORAGE_KEYS = {
   apiKey: 'sami_gemini_key',
   model: 'sami_gemini_model',
@@ -12,62 +14,34 @@ const STORAGE_KEYS = {
 
 const LANG_UI = {
   nor: {
-    subtitle: 'Norsk → Davvisámegillii',
-    docTitle: 'Jorgaleaddji – Norsk → Davvisámegillii',
+    subtitle: 'Norsk → Nordsamisk',
+    docTitle: 'Jorgaleaddji – Norsk → Nordsamisk',
     htmlLang: 'nb',
     sourcePlaceholder: 'Skriv eller lim inn norsk tekst her...',
-    targetPlaceholder: 'Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...',
-    actionLabel: 'Jorgalit ja dárkkistit',
-    runningLabel: 'Oversetter...',
-    targetHeader: 'Davvisámegiella',
-    rawTabLabel: 'Råutkast (TartuNLP nor→sme)',
-    rawTabCaption: 'Morfologisk førsteutkast fra Universitetet i Tartu (translate.ut.ee):',
-    step1Label: '1. TartuNLP (nor)',
     example:
       'Statsforvalteren har gitt fellingstillatelse på bjørn. Saken ble behandlet av kommunestyret i går, men jeg vet ikke om fem personer kommer i morgen eller på fredag.',
   },
   swe: {
-    subtitle: 'Svenska → Davvisámegillii',
-    docTitle: 'Jorgaleaddji – Svenska → Davvisámegillii',
+    subtitle: 'Svenska → Nordsamiska',
+    docTitle: 'Jorgaleaddji – Svenska → Nordsamiska',
     htmlLang: 'sv',
     sourcePlaceholder: 'Skriv eller klistra in svensk text här...',
-    targetPlaceholder: 'Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...',
-    actionLabel: 'Jorgalit ja dárkkistit',
-    runningLabel: 'Oversetter...',
-    targetHeader: 'Davvisámegiella',
-    rawTabLabel: 'Råutkast (TartuNLP swe→sme)',
-    rawTabCaption: 'Morfologisk førsteutkast fra Universitetet i Tartu (translate.ut.ee):',
-    step1Label: '1. TartuNLP (swe)',
     example:
       'Länsstyrelsen har gett tillstånd för björnjakt. Ärendet behandlades av kommunfullmäktige i går, men jag vet inte om fem personer kommer i morgon eller på fredag.',
   },
   fin: {
-    subtitle: 'Suomi → Davvisámegillii',
-    docTitle: 'Jorgaleaddji – Suomi → Davvisámegillii',
+    subtitle: 'Suomi → Pohjoissaame',
+    docTitle: 'Jorgaleaddji – Suomi → Pohjoissaame',
     htmlLang: 'fi',
     sourcePlaceholder: 'Kirjoita tai liitä suomenkielinen teksti tähän...',
-    targetPlaceholder: 'Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...',
-    actionLabel: 'Jorgalit ja dárkkistit',
-    runningLabel: 'Oversetter...',
-    targetHeader: 'Davvisámegiella',
-    rawTabLabel: 'Råutkast (TartuNLP fin→sme)',
-    rawTabCaption: 'Morfologisk førsteutkast fra Universitetet i Tartu (translate.ut.ee):',
-    step1Label: '1. TartuNLP (fin)',
     example:
       'Aluehallintovirasto on myöntänyt karhun kaatoluvan. Kunnanvaltuusto käsitteli asiaa eilen, mutta en tiedä, tuleeko viisi henkilöä huomenna vai perjantaina.',
   },
   eng: {
-    subtitle: 'English → Davvisámegillii',
-    docTitle: 'Jorgaleaddji – English → Davvisámegillii',
+    subtitle: 'English → Northern Sámi',
+    docTitle: 'Jorgaleaddji – English → Northern Sámi',
     htmlLang: 'en',
     sourcePlaceholder: 'Type or paste English text here...',
-    targetPlaceholder: 'Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...',
-    actionLabel: 'Jorgalit ja dárkkistit',
-    runningLabel: 'Oversetter...',
-    targetHeader: 'Davvisámegiella',
-    rawTabLabel: 'Råutkast (TartuNLP eng→sme)',
-    rawTabCaption: 'Morfologisk førsteutkast fra Universitetet i Tartu (translate.ut.ee):',
-    step1Label: '1. TartuNLP (eng)',
     example:
       'The County Governor has granted a license to cull a bear. The municipal council discussed the matter yesterday, but I do not know if five people will arrive tomorrow or on Friday.',
   },
@@ -76,26 +50,42 @@ const LANG_UI = {
     docTitle: 'Jorgaleaddji – Davvisámegiel gielladikšun ja divvun',
     htmlLang: 'se',
     sourcePlaceholder: 'Čále dahje liibme davvisámegiel teavstta dása (gielladikšun ja divvun)...',
-    targetPlaceholder: 'Dás oidno gielladárkkistuvvon ja divvojuvvon davvisámegiel teaksta...',
-    actionLabel: 'Gielladikšun ja divvun',
-    runningLabel: 'Språkvasker...',
-    targetHeader: 'Davvisámegiella (Vasket)',
-    rawTabLabel: 'Opprinnelig tekst',
-    rawTabCaption: 'Opprinnelig nordsamisk kildetekst før språkvask:',
-    step1Label: '1. Klargjøring',
     example:
       'Ášši meannuduvvui suohkanstivrras ikte, muhto in dieđe jos 5 olbmot bohtet ihttin dahje bearjadaga. Mii eat sáhte váldit badjelasamet lasi barggu 25%.',
   },
 };
 
-const STARTER_GLOSSARY = [
-  'Statsforvalteren = Stáhtahálddašeaddji',
-  'Sametinget = Sámediggi',
-  'kommunestyret = suohkanstivra',
-  'formannskapet = suohkanráđđi',
-  'saksbehandler = áššemeannudeaddji',
-  'kunstig intelligens = dáhkkon jierbmi',
-].join('\n');
+const STARTER_GLOSSARY = {
+  nor: 'Statsforvalteren = Stáhtahálddašeaddji\nSametinget = Sámediggi\nkommunestyret = suohkanstivra\nformannskapet = suohkanráđđi\nsaksbehandler = áššemeannudeaddji\nkunstig intelligens = dáhkkon jierbmi',
+  swe: 'Sametinget = Sámediggi\nkommunfullmäktige = suohkanstivra\nhandläggare = áššemeannudeaddji\nartificiell intelligens = dáhkkon jierbmi',
+  fin: 'Saamelaiskäräjät = Sámediggi\nkunnanvaltuusto = suohkanstivra\nkäsittelijä = áššemeannudeaddji\ntekoäly = dáhkkon jierbmi',
+  eng: 'Sámi Parliament = Sámediggi\nmunicipal council = suohkanstivra\ncase officer = áššemeannudeaddji\nartificial intelligence = dáhkkon jierbmi',
+  sme: 'Sámediggi = Sámediggi\nsuohkanstivra = suohkanstivra\náššemeannudeaddji = áššemeannudeaddji',
+};
+
+const TARGET_PLACEHOLDERS = {
+  nor: 'Den ferdige nordsamiske teksten vises her...',
+  swe: 'Den färdiga nordsamiska texten visas här...',
+  fin: 'Valmis pohjoissaamenkielinen teksti näkyy tässä...',
+  eng: 'The completed Northern Sámi text appears here...',
+  sme: 'Dás oidno gárves davvisámegiel teaksta...',
+};
+const TARGET_LABELS = {
+  nor: 'Nordsamisk',
+  swe: 'Nordsamiska',
+  fin: 'Pohjoissaame',
+  eng: 'Northern Sámi',
+  sme: 'Davvisámegiella',
+};
+
+const MODEL_DESCRIPTIONS = {
+  nor: ['Rask og gratisnivå', 'Presis og effektiv', 'Dypest resonnering', 'Lynrask lettvekter'],
+  swe: ['Snabb och gratisnivå', 'Precis och effektiv', 'Djupast resonemang', 'Blixtsnabb lättviktsmodell'],
+  fin: ['Nopea ja maksuton taso', 'Tarkka ja tehokas', 'Syvällisin päättely', 'Salamannopea kevyt malli'],
+  eng: ['Fast and free tier', 'Precise and efficient', 'Deepest reasoning', 'Lightning-fast lightweight model'],
+  sme: ['Jođánis ja nuvttádássi', 'Dárkilis ja beaktilis', 'Čiekŋaleamos jurddašeapmi', 'Hui jođánis geahppis modealla'],
+};
+const MODEL_IDS = ['gemini-4-hydrogen', 'gemini-4-argon', 'gemini-4-carbon', 'gemini-3.5-flash-lite'];
 
 const sourceEl = document.getElementById('sourceText');
 const targetEl = document.getElementById('targetText');
@@ -126,6 +116,100 @@ let lastFocusedEditor = sourceEl;
 let lastDiffBaselineText = '';
 let currentTargetErrors = [];
 let isTargetEditMode = true;
+let lastTips = [];
+let lastImprovements = [];
+let lastImprovementTranslations = {};
+let lastErrors = [];
+let lastResult = null;
+let lastProgress = null;
+let lastEndProgress = null;
+let lastStatus = { key: 'ready', params: {}, suffix: '' };
+
+function tr(key, params = {}) {
+  const text = UI_STRINGS[currentSourceLang][key];
+  if (text === undefined) throw new Error(`Missing UI translation: ${currentSourceLang}.${key}`);
+  return text.replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? `{${name}}`));
+}
+
+function setStatus(key, params = {}, suffix = '') {
+  lastStatus = { key, params, suffix };
+  statusText.textContent = `${tr(key, params)}${suffix}`;
+}
+
+function translateStaticUI() {
+  const texts = {
+    '#toggleSettingsBtn span': 'settings',
+    'label[for="geminiModel"]': 'model',
+    '#refreshModelsBtn': 'refresh',
+    'label[for="thinkingLevel"]': 'thinking',
+    '#thinkingLevel option[value="low"]': 'low',
+    '#thinkingLevel option[value="medium"]': 'medium',
+    '#thinkingLevel option[value="high"]': 'high',
+    'label[for="geminiKeyInput"]': 'apiKey',
+    '#autoApplyDivvun + span': 'autoDivvun',
+    '#useLlm + span': 'useGemini',
+    'label[for="glossaryInput"]': 'glossary',
+    '#starterGlossaryBtn': 'starter',
+    '#cancelBtn': 'cancel',
+    '#stepPill4': 'finalCheck',
+    '.toolbar-caption': 'characters',
+    'label[for="satniQueryInput"]': 'search',
+    '#exampleBtn': 'example',
+    '#clearBtn': 'clear',
+    'label[for="sourceText"]': 'sourceText',
+    'label[for="targetText"]': 'targetText',
+    '#recheckDivvunBtn': 'recheck',
+    '#copyBtn span': 'copy',
+    '#tabBtnImprovements span:first-child': 'tipsTab',
+    '#tabBtnDivvun span:first-child': 'divvunTab',
+    '#tabBtnDiff span:first-child': 'diffTab',
+    '.guidelines-details summary span': 'guidelines',
+  };
+  for (const [selector, key] of Object.entries(texts)) {
+    document.querySelector(selector).textContent = tr(key);
+  }
+  const attributes = [
+    ['#toggleSettingsBtn', 'title', 'settingsTitle'],
+    ['#geminiKeyInput', 'placeholder', keyInput.dataset.envKey === 'true' ? 'keyEnv' : 'keyPlaceholder'],
+    ['#progressSpinner', 'aria-label', 'working'],
+    ['.sami-toolbar', 'aria-label', 'toolbar'],
+    ['[data-char="”"]', 'title', 'quote'],
+    ['[data-char="–"]', 'title', 'dash'],
+    ['#satniQueryInput', 'placeholder', 'searchPlaceholder'],
+    ['#satniLookupBtn', 'title', 'lookup'],
+    ['.lang-switcher', 'aria-label', 'sourceLanguage'],
+    ['.kbd-hint', 'title', 'shortcut'],
+    ['#pipelineDetails', 'aria-label', 'insights'],
+    ['#insightsTablist', 'aria-label', 'details'],
+  ];
+  for (const [selector, attribute, key] of attributes) {
+    document.querySelector(selector).setAttribute(attribute, tr(key));
+  }
+  glossaryInput.placeholder = STARTER_GLOSSARY[currentSourceLang].split('\n').slice(0, 2).join('\n');
+  for (const option of modelSelect.options) {
+    const index = MODEL_IDS.indexOf(option.value);
+    option.textContent = index < 0 ? option.value : `${option.value} — ${MODEL_DESCRIPTIONS[currentSourceLang][index]}`;
+  }
+  document.querySelector('#btnLang_sme .tag-vask').textContent = tr('proofread');
+  document.getElementById('btnLang_sme').title = tr('proofread');
+  document.querySelectorAll('.guideline-item').forEach((item, index) => {
+    item.querySelector('.guideline-head').textContent = tr(`guide${index + 1}title`);
+    item.querySelector('p:not(.guideline-head)').textContent = tr(`guide${index + 1}`);
+  });
+}
+
+function updateRawLabels(sourceLang) {
+  const isSami = sourceLang === 'sme';
+  document.getElementById('tabBtnTartuLabel').textContent = isSami
+    ? tr('originalText') : `${tr('rawDraft')} (TartuNLP ${sourceLang}→sme)`;
+  document.getElementById('rawTabCaption').textContent = tr(isSami ? 'originalCaption' : 'rawCaption');
+  if (lastResult?.step1_raw_translations?.[currentSourceLang]) {
+    document.getElementById('tartuRawBox').textContent = lastResult.step1_raw_translations[currentSourceLang];
+    document.getElementById('tartuRawBox').lang = LANG_UI[currentSourceLang].htmlLang;
+  } else {
+    document.getElementById('tartuRawBox').lang = 'se';
+  }
+}
 
 // --- Focusgroup & Scrollability Progressive Enhancement (per modern-web-guidance: tabs) ---
 async function initTabsEnhancements() {
@@ -224,7 +308,7 @@ function reportCopy(button, ok) {
   button.removeAttribute('data-copied');
   button.removeAttribute('data-failed');
 
-  let message = ok ? 'Kopiert' : 'Kopiering feilet';
+  let message = tr(ok ? 'copyOk' : 'copyFail');
   if (message === lastCopyMessage) message += '\u00A0';
   lastCopyMessage = message;
 
@@ -236,7 +320,7 @@ function reportCopy(button, ok) {
       tip.textContent = message;
     });
   }
-  statusText.textContent = ok ? 'Kopiert til utklippstavlen.' : 'Kunne ikke kopiere teksten.';
+  setStatus(ok ? 'copyOkStatus' : 'copyFailStatus');
 
   copyTimers.set(
     button,
@@ -300,27 +384,57 @@ function setSourceLang(lang, persist = true) {
   });
 
   document.title = cfg.docTitle;
+  document.documentElement.lang = cfg.htmlLang;
+  translateStaticUI();
   if (headerSubtitle) headerSubtitle.textContent = cfg.subtitle;
   sourceEl.lang = cfg.htmlLang;
   sourceEl.placeholder = cfg.sourcePlaceholder;
-  targetEl.placeholder = cfg.targetPlaceholder;
+  targetEl.placeholder = TARGET_PLACEHOLDERS[currentSourceLang];
 
   const translateBtnLabel = document.getElementById('translateBtnLabel');
   if (translateBtnLabel && !activeAbortController) {
-    translateBtnLabel.textContent = cfg.actionLabel;
+    translateBtnLabel.textContent = tr(lang === 'sme' ? 'proofread' : 'translate');
+  } else if (translateBtnLabel) {
+    translateBtnLabel.textContent = tr(lang === 'sme' ? 'proofreadRunning' : 'translateRunning');
   }
 
   const targetHeaderLabel = document.getElementById('targetHeaderLabel');
-  if (targetHeaderLabel) targetHeaderLabel.textContent = cfg.targetHeader;
+  if (targetHeaderLabel) targetHeaderLabel.textContent = lang === 'sme' ? tr('targetWashed') : TARGET_LABELS[currentSourceLang];
 
-  const tabBtnTartuLabel = document.getElementById('tabBtnTartuLabel');
-  if (tabBtnTartuLabel) tabBtnTartuLabel.textContent = cfg.rawTabLabel;
-
-  const rawTabCaption = document.getElementById('rawTabCaption');
-  if (rawTabCaption) rawTabCaption.textContent = cfg.rawTabCaption;
+  updateRawLabels(lastResult?.source_lang || currentSourceLang);
 
   const stepPill1 = document.getElementById('stepPill1');
-  if (stepPill1) stepPill1.textContent = cfg.step1Label;
+  if (stepPill1) stepPill1.textContent = lang === 'sme' ? tr('preparation') : `1. TartuNLP (${lang})`;
+  updateCounts();
+  setTargetViewMode(isTargetEditMode);
+  if (!document.getElementById('pipelineDetails').hidden) {
+    renderErrors(lastErrors);
+    const editMode = isTargetEditMode;
+    renderTargetInteractiveView(targetEl.value, lastErrors);
+    setTargetViewMode(editMode);
+    renderTips(lastImprovements, lastTips);
+    renderDiff(lastDiffBaselineText, targetEl.value);
+    if (lastResult) {
+      document.getElementById('usedModelLabel').textContent = lastResult.used_model
+        ? `${tr('modelLabel')} ${lastResult.used_model}` : '';
+      badgeEl.textContent = lastResult.llm_active
+        ? `${lastResult.source_lang === 'sme' ? `${tr('washed')} ` : ''}${lastResult.used_model} + Divvun`
+        : lastResult.source_lang === 'sme' ? tr('onlyDivvun') : 'TartuNLP + Divvun';
+    }
+  }
+  if (lastStatus) setStatus(lastStatus.key, lastStatus.params, lastStatus.suffix);
+  if (lastProgress?.translations) {
+    const translated = lastProgress.translations[currentSourceLang];
+    updateProgressUI(lastProgress.step, lastProgress.percent, translated.title, translated.detail);
+    if (activeAbortController) statusText.textContent = translated.title;
+  } else if (lastEndProgress) {
+    updateProgressUI(
+      lastEndProgress.step, lastEndProgress.percent,
+      tr(lastEndProgress.title, lastEndProgress.params),
+      lastEndProgress.detailKey ? tr(lastEndProgress.detailKey) : lastEndProgress.detail,
+      lastEndProgress.state,
+    );
+  }
 }
 
 function toggleSettings() {
@@ -339,12 +453,12 @@ function countWords(str) {
 function updateCounts() {
   const sVal = sourceEl.value;
   const sWords = countWords(sVal);
-  document.getElementById('charCount').textContent = `${sWords} ord \u2022 ${sVal.length} tegn`;
+  document.getElementById('charCount').textContent = `${sWords} ${tr('words')} \u2022 ${sVal.length} ${tr('chars')}`;
   clearBtn.hidden = sVal.length === 0;
 
   const tVal = targetEl.value;
   const tWords = countWords(tVal);
-  targetCount.textContent = `${tWords} ord \u2022 ${tVal.length} tegn`;
+  targetCount.textContent = `${tWords} ${tr('words')} \u2022 ${tVal.length} ${tr('chars')}`;
 }
 
 function clearSource() {
@@ -362,7 +476,8 @@ function loadExample() {
 
 function insertStarterGlossary() {
   const existing = glossaryInput.value.trim();
-  glossaryInput.value = existing ? `${existing}\n${STARTER_GLOSSARY}` : STARTER_GLOSSARY;
+  const starter = STARTER_GLOSSARY[currentSourceLang];
+  glossaryInput.value = existing ? `${existing}\n${starter}` : starter;
   localStorage.setItem(STORAGE_KEYS.glossary, glossaryInput.value);
 }
 
@@ -442,7 +557,8 @@ function populateModelOptions(models, preferredId) {
   for (const m of models) {
     const opt = document.createElement('option');
     opt.value = m.id;
-    opt.textContent = m.display_name && m.display_name !== m.id ? `${m.id} — ${m.display_name}` : m.id;
+    const index = MODEL_IDS.indexOf(m.id);
+    opt.textContent = index < 0 ? m.id : `${m.id} — ${MODEL_DESCRIPTIONS[currentSourceLang][index]}`;
     modelSelect.appendChild(opt);
   }
   const ids = models.map((m) => m.id);
@@ -468,7 +584,8 @@ async function loadAvailableModels() {
     const cfg = await resp.json();
 
     if (cfg.has_env_key) {
-      keyInput.placeholder = 'Aktiv fra .env (kan overstyres her)';
+      keyInput.dataset.envKey = 'true';
+      keyInput.placeholder = tr('keyEnv');
     }
 
     const savedModel = localStorage.getItem(STORAGE_KEYS.model);
@@ -479,7 +596,7 @@ async function loadAvailableModels() {
 
     if (models.length > 0) {
       populateModelOptions(models, savedModel || cfg.env_model || 'gemini-4-hydrogen');
-      statusText.textContent = `Klar (${modelSelect.value})`;
+      setStatus('ready', {}, ` (${modelSelect.value})`);
     }
   } catch (err) {
     console.warn('Kunne ikke hente konfigurasjon:', err);
@@ -564,6 +681,7 @@ function applyDivvunSuggestion(errObj, replacement) {
 
 // --- XSS-Safe Rendering of Errors, Tips & Word-Level Diff ---
 function renderErrors(errs) {
+  lastErrors = Array.isArray(errs) ? errs : [];
   const box = document.getElementById('divvunErrorsBox');
   const badgeCount = document.getElementById('badgeDivvunCount');
   const list = Array.isArray(errs) ? errs : [];
@@ -575,24 +693,25 @@ function renderErrors(errs) {
     badgeCount.classList.add('is-emerald');
     const okEl = document.createElement('div');
     okEl.className = 'note-card is-ok';
-    okEl.textContent = 'Ingen gjenstående feil funnet av Divvun!';
+    okEl.textContent = tr('noErrors');
     box.appendChild(okEl);
     return;
   }
 
   badgeCount.classList.add('is-amber');
   for (const e of list) {
+    const translated = e.translations?.[currentSourceLang] || e;
     const card = document.createElement('div');
     card.className = 'note-card is-divvun';
 
     const title = document.createElement('div');
     title.className = 'note-title';
-    title.textContent = `”${e.error_text || ''}” — ${e.title || e.error_code || 'Merknad'}`;
+    title.textContent = `”${e.error_text || ''}” — ${translated.title || e.error_code || tr('note')}`;
     card.appendChild(title);
 
-    if (e.description) {
+    if (translated.description) {
       const desc = document.createElement('div');
-      desc.textContent = e.description;
+      desc.textContent = translated.description;
       card.appendChild(desc);
     }
 
@@ -662,7 +781,8 @@ function openSpellPopover(triggerBtn, errObj) {
 
   const metaEl = document.createElement('div');
   metaEl.className = 'spell-popover-meta';
-  metaEl.textContent = [errObj.title, errObj.description].filter(Boolean).join(' – ');
+  const translated = errObj.translations?.[currentSourceLang] || errObj;
+  metaEl.textContent = [translated.title, translated.description].filter(Boolean).join(' – ');
   if (metaEl.textContent) head.appendChild(metaEl);
 
   spellPopoverEl.appendChild(head);
@@ -686,7 +806,7 @@ function openSpellPopover(triggerBtn, errObj) {
   } else {
     const empty = document.createElement('div');
     empty.className = 'spell-popover-empty';
-    empty.textContent = 'Ingen forslag fra Divvun.';
+    empty.textContent = tr('noSuggestions');
     spellPopoverEl.appendChild(empty);
   }
 
@@ -696,7 +816,7 @@ function openSpellPopover(triggerBtn, errObj) {
   const editBtn = document.createElement('button');
   editBtn.type = 'button';
   editBtn.className = 'spell-action-btn';
-  editBtn.textContent = 'Rediger manuelt';
+  editBtn.textContent = tr('editManually');
   editBtn.addEventListener('click', () => {
     closeSpellPopover();
     setTargetViewMode(true);
@@ -710,7 +830,7 @@ function openSpellPopover(triggerBtn, errObj) {
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'spell-action-btn';
-  closeBtn.textContent = 'Lukk';
+  closeBtn.textContent = tr('close');
   closeBtn.addEventListener('click', closeSpellPopover);
   actions.appendChild(closeBtn);
 
@@ -732,12 +852,12 @@ function setTargetViewMode(editMode) {
     targetEl.hidden = false;
     targetInteractiveEl.hidden = true;
     toggleTargetViewBtn.hidden = !hasErrors;
-    toggleTargetViewBtn.textContent = 'Vis markeringer';
+    toggleTargetViewBtn.textContent = tr('showMarks');
   } else {
     targetEl.hidden = true;
     targetInteractiveEl.hidden = false;
     toggleTargetViewBtn.hidden = false;
-    toggleTargetViewBtn.textContent = 'Rediger tekst';
+    toggleTargetViewBtn.textContent = tr('editText');
   }
 }
 
@@ -776,7 +896,7 @@ function renderTargetInteractiveView(text, errs) {
     trigger.type = 'button';
     trigger.className = 'spell-mark';
     trigger.textContent = text.slice(err.start_index, err.end_index);
-    trigger.title = err.title || 'Klikk for staveforslag fra Divvun';
+    trigger.title = err.translations?.[currentSourceLang]?.title || err.title || tr('clickSuggestion');
     trigger.addEventListener('click', () => openSpellPopover(trigger, err));
     targetInteractiveEl.appendChild(trigger);
     cursor = err.end_index;
@@ -789,6 +909,8 @@ function renderTargetInteractiveView(text, errs) {
 }
 
 function renderTips(improvements, tips) {
+  lastImprovements = improvements;
+  lastTips = tips;
   const box = document.getElementById('languageTipsBox');
   const badgeCount = document.getElementById('badgeImprovementsCount');
   box.replaceChildren();
@@ -802,29 +924,30 @@ function renderTips(improvements, tips) {
     const card = document.createElement('div');
     card.className = 'note-card is-improvement';
     const strong = document.createElement('strong');
-    strong.textContent = 'Språkvask: ';
+    strong.textContent = `${tr('proofreading')} `;
     card.appendChild(strong);
-    card.appendChild(document.createTextNode(imp));
+    card.appendChild(document.createTextNode(lastImprovementTranslations[imp]?.[currentSourceLang] || imp));
     box.appendChild(card);
   }
 
   for (const t of tipList) {
+    const translatedTip = t.translations?.[currentSourceLang] || t;
     const card = document.createElement('div');
     card.className = 'note-card is-tip';
 
     const title = document.createElement('div');
     title.className = 'note-title';
-    title.textContent = `${t.rule || 'Språkråd'} `;
-    if (t.reference) {
+    title.textContent = `${translatedTip.rule || tr('languageTip')} `;
+    if (translatedTip.reference) {
       const ref = document.createElement('span');
       ref.className = 'note-ref';
-      ref.textContent = `(${t.reference})`;
+      ref.textContent = `(${translatedTip.reference})`;
       title.appendChild(ref);
     }
     card.appendChild(title);
 
     const msg = document.createElement('div');
-    msg.textContent = t.message || '';
+    msg.textContent = translatedTip.message || '';
     card.appendChild(msg);
 
     box.appendChild(card);
@@ -833,8 +956,7 @@ function renderTips(improvements, tips) {
   if (totalCount === 0) {
     const okEl = document.createElement('div');
     okEl.className = 'note-card is-ok';
-    okEl.textContent =
-      'Teksten oppfyller alle automatiske sjekkpunkter fra Riektačállinrávvagat og NRK Sámi Giellagiehtagirji.';
+    okEl.textContent = tr('noTips');
     box.appendChild(okEl);
   }
 }
@@ -895,15 +1017,12 @@ function renderDiff(beforeText, afterText) {
 
   if (!beforeText || !afterText || beforeText.startsWith('[')) {
     badgeDiff.textContent = '0';
-    diffCaption.textContent = 'Ingen samisk utgangstekst å sammenligne med for denne kjøringen.';
+    diffCaption.textContent = tr('noDiff');
     diffBox.textContent = afterText || '';
     return;
   }
 
-  diffCaption.textContent =
-    currentSourceLang === 'sme'
-      ? 'Endringer fra opprinnelig samisk kildetekst til ferdig vasket tekst:'
-      : 'Endringer fra TartuNLP-råutkast til ferdig språkvasket tekst:';
+  diffCaption.textContent = tr((lastResult?.source_lang || currentSourceLang) === 'sme' ? 'diffSami' : 'diffTartu');
 
   const oldParas = beforeText.split('\n');
   const newParas = afterText.split('\n');
@@ -944,6 +1063,8 @@ function renderDiff(beforeText, afterText) {
 
 // --- Display Pipeline Output ---
 function displayFinalData(data) {
+  lastResult = data;
+  lastImprovementTranslations = data.improvement_translations || {};
   const finalOut = data.step3_final_text || '';
   targetEl.value = finalOut;
   updateCounts();
@@ -951,6 +1072,7 @@ function displayFinalData(data) {
   const rawText = data.step1_tartu_raw || '';
   document.getElementById('tartuRawBox').textContent = rawText;
   document.getElementById('pipelineDetails').hidden = false;
+  updateRawLabels(data.source_lang);
 
   lastDiffBaselineText = data.source_lang === 'sme' ? data.source_text || '' : rawText;
   renderDiff(lastDiffBaselineText, finalOut);
@@ -961,16 +1083,16 @@ function displayFinalData(data) {
 
   if (data.llm_active) {
     badgeEl.textContent = isSami
-      ? `Vasket: ${data.used_model} + Divvun`
+      ? `${tr('washed')} ${data.used_model} + Divvun`
       : `${data.used_model} + Divvun`;
     badgeEl.classList.add('is-llm');
   } else {
-    badgeEl.textContent = isSami ? 'Kun Divvun-retting' : 'TartuNLP + Divvun';
+    badgeEl.textContent = isSami ? tr('onlyDivvun') : 'TartuNLP + Divvun';
     badgeEl.classList.add('is-basic');
   }
 
+  document.getElementById('usedModelLabel').textContent = data.used_model ? `${tr('modelLabel')} ${data.used_model}` : '';
   if (data.used_model) {
-    document.getElementById('usedModelLabel').textContent = `Modell: ${data.used_model}`;
     headerModelLabel.textContent = data.used_model;
     headerModelBadge.classList.add('is-ready');
   }
@@ -980,11 +1102,11 @@ function displayFinalData(data) {
   renderTargetInteractiveView(finalOut, finalErrs);
   renderTips(data.step3_improvements || [], data.language_tips || []);
 
-  statusText.textContent = data.llm_active
-    ? isSami
-      ? `Språkvasket med ${data.used_model}`
-      : `Fullført med ${data.used_model}`
-    : 'Fullført (uten Gemini)';
+  if (data.llm_active) {
+    setStatus('finishedWith', { model: data.used_model });
+  } else {
+    setStatus('finishedWithout');
+  }
 
   switchTab('improvements');
 }
@@ -999,13 +1121,14 @@ function cancelTranslation() {
 async function runPipeline() {
   const text = sourceEl.value.trim();
   if (!text || activeAbortController) return;
+  lastProgress = null;
+  lastEndProgress = null;
 
-  const cfg = LANG_UI[currentSourceLang] || LANG_UI.nor;
   renderTargetInteractiveView('', []);
   const btn = document.getElementById('translateBtn');
   const btnLabel = document.getElementById('translateBtnLabel');
   btn.disabled = true;
-  btnLabel.textContent = cfg.runningLabel;
+  btnLabel.textContent = tr(currentSourceLang === 'sme' ? 'proofreadRunning' : 'translateRunning');
 
   activeAbortController = new AbortController();
   startTime = Date.now();
@@ -1020,8 +1143,8 @@ async function runPipeline() {
   updateProgressUI(
     1,
     5,
-    isSami ? 'Starter språkvask og korrektur...' : 'Starter oversettelse...',
-    'Sender tekst til server...',
+    tr(isSami ? 'startingProofread' : 'startingTranslation'),
+    tr('sending'),
     'running'
   );
 
@@ -1072,15 +1195,20 @@ async function runPipeline() {
       if (!line.trim()) return;
       const msg = JSON.parse(line);
       if (msg.type === 'progress') {
-        updateProgressUI(msg.step, msg.percent, msg.title, msg.detail, 'running');
-        statusText.textContent = msg.title;
+        lastProgress = msg;
+        const translated = msg.translations?.[currentSourceLang] || msg;
+        updateProgressUI(msg.step, msg.percent, translated.title, translated.detail, 'running');
+        lastStatus = null;
+        statusText.textContent = translated.title;
       } else if (msg.type === 'result') {
+        lastProgress = null;
         receivedResult = true;
         const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
-        updateProgressUI(4, 100, `Fullført på ${totalSec}s`, 'Alle trinn er fullført.', 'done');
+        lastEndProgress = { step: 4, percent: 100, title: 'doneIn', params: { seconds: totalSec }, detailKey: 'allDone', state: 'done' };
+        updateProgressUI(4, 100, tr('doneIn', { seconds: totalSec }), tr('allDone'), 'done');
         displayFinalData(msg.data);
       } else if (msg.type === 'error') {
-        throw new Error(msg.message || 'Feil i oversettelsesstrømmen.');
+        throw new Error(msg.message || tr('streamError'));
       }
     };
 
@@ -1098,34 +1226,36 @@ async function runPipeline() {
       handleLine(buffer);
     }
     if (!receivedResult) {
-      throw new Error('Forbindelsen ble lukket før resultatet var klart.');
+      throw new Error(tr('connectionClosed'));
     }
   } catch (err) {
     if (err.name === 'AbortError') {
-      statusText.textContent = 'Avbrutt av bruker.';
-      updateProgressUI(1, 0, 'Avbrutt', 'Kjøringen ble stoppet av bruker.', 'error');
+      lastEndProgress = { step: 1, percent: 0, title: 'cancelled', detailKey: 'cancelDetail', state: 'error' };
+      setStatus('cancelled');
+      updateProgressUI(1, 0, tr('cancelled'), tr('cancelDetail'), 'error');
     } else {
-      statusText.textContent = 'Feil: ' + err.message;
-      updateProgressUI(1, 100, 'Feil under kjøring', err.message, 'error');
+      lastEndProgress = { step: 1, percent: 100, title: 'runError', detail: err.message, state: 'error' };
+      setStatus('error', {}, ` ${err.message}`);
+      updateProgressUI(1, 100, tr('runError'), err.message, 'error');
     }
   } finally {
     if (timerInterval) clearInterval(timerInterval);
     activeAbortController = null;
+    lastProgress = null;
     btn.disabled = false;
-    const latestCfg = LANG_UI[currentSourceLang] || LANG_UI.nor;
-    btnLabel.textContent = latestCfg.actionLabel;
+    btnLabel.textContent = tr(currentSourceLang === 'sme' ? 'proofread' : 'translate');
   }
 }
 
 async function recheckDivvun() {
   const text = targetEl.value.trim();
   if (!text) return;
-  statusText.textContent = 'Sjekker med Divvun...';
+  setStatus('checkingDivvun');
   try {
     const resp = await fetch('/api/proofread', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, source_lang: currentSourceLang }),
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
@@ -1133,14 +1263,15 @@ async function recheckDivvun() {
     const errs = data.errs || [];
     renderErrors(errs);
     renderTargetInteractiveView(targetEl.value, errs);
+    lastImprovementTranslations = {};
     renderTips([], data.language_tips || []);
     if (lastDiffBaselineText) {
       renderDiff(lastDiffBaselineText, targetEl.value);
     }
     switchTab('divvun');
-    statusText.textContent = `Divvun-sjekk fullført (${(data.errs || []).length} merknader).`;
+    setStatus('divvunDone', { count: (data.errs || []).length });
   } catch {
-    statusText.textContent = 'Kunne ikke nå Divvun API.';
+    setStatus('divvunError');
   }
 }
 

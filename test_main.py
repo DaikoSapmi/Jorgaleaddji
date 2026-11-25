@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import types
@@ -47,6 +48,46 @@ class TestJorgaleaddjiCore(unittest.TestCase):
         rules = [t["rule"] for t in tips]
         self.assertIn("Avsnittsstruktur (Fullstendighet)", rules)
         self.assertIn("Årstall fra kildeteksten", rules)
+
+    def test_all_local_tips_are_translated_and_interpolated(self):
+        source = "1997\n2000\n2001"
+        sami = (
+            "In dieđe jos enngo ektui gávnnahii olggos olggosoaidnit "
+            "dahkkojuvvui dieđus ge 25% 25%-mearri Tansaniija “hei”.\n"
+            "Boađátgo ihttin dahje bearjadaga?"
+        )
+        original = main.local_heuristic_checks(source, sami)
+        self.assertEqual({tip["rule"] for tip in original}, set(main.TIP_TRANSLATIONS))
+        for language in main.UI_LANGUAGES:
+            with self.subTest(language=language):
+                tips = main.local_heuristic_checks(source, sami, language)
+                self.assertEqual(len(tips), len(original))
+                self.assertEqual(tips[0]["rule"], tips[0]["translations"][language]["rule"])
+                self.assertTrue(all("{" not in tip["message"] for tip in tips))
+                self.assertTrue(any("Tansaniija" in tip["message"] for tip in tips))
+                self.assertTrue(any("1997" in tip["message"] for tip in tips))
+
+    def test_server_messages_cover_all_languages(self):
+        self.assertTrue(all(len(messages) == len(main.UI_LANGUAGES) for messages in main.SERVER_MESSAGES.values()))
+        for language in main.UI_LANGUAGES:
+            self.assertIn("42", main.ui_message(language, "step4_fix", count=42))
+
+    def test_ui_catalogs_have_matching_keys_and_placeholders(self):
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "ui-strings.js")
+        with open(path, encoding="utf-8") as fh:
+            source = fh.read()
+        catalog = json.loads(source.removeprefix("export const UI_STRINGS = ").removesuffix(";\n"))
+        self.assertEqual(set(catalog), set(main.UI_LANGUAGES))
+        for language, messages in catalog.items():
+            with self.subTest(language=language):
+                self.assertEqual(set(messages), set(catalog["nor"]))
+                for key, message in messages.items():
+                    self.assertTrue(message, key)
+                    self.assertEqual(
+                        set(re.findall(r"\{(\w+)\}", message)),
+                        set(re.findall(r"\{(\w+)\}", catalog["nor"][key])),
+                        key,
+                    )
 
     def test_divvun_fixes_sentence_initial_typo_but_protects_proper_nouns(self):
         text = "Son bođii ikte. Boahhtá ihttin."
@@ -167,6 +208,48 @@ class TestJorgaleaddjiCore(unittest.TestCase):
 
 
 class TestAsyncPipeline(unittest.IsolatedAsyncioTestCase):
+    async def test_proofread_uses_requested_language_and_accepts_alias(self):
+        req = main.ProofreadRequest(text="25%", source_lang="en")
+        with (
+            patch("main.call_divvun_grammar", new=AsyncMock(return_value={"errs": []})),
+            patch("main.call_divvun_speller", new=AsyncMock(return_value=[{
+                "error_text": "25%", "start_index": 0, "end_index": 3,
+                "source": "speller", "suggestions": [],
+            }])),
+        ):
+            result = await main.proofread_only(req)
+        self.assertIn("space", result["language_tips"][0]["message"])
+        self.assertEqual(result["errs"][0]["title"], "Spelling error (Divvun Speller)")
+        self.assertEqual(result["errs"][0]["translations"]["swe"]["title"], "Stavfel (Divvun Speller)")
+
+    async def test_pipeline_localizes_progress_and_local_notices(self):
+        req = main.TranslateRequest(text="25%", source_lang="sme", use_llm=False)
+        with (
+            patch("main.call_divvun_grammar", new=AsyncMock(return_value={"errs": []})),
+            patch("main.call_divvun_speller", new=AsyncMock(return_value=[])),
+        ):
+            events = [event async for event in main.run_translation_pipeline_events(req)]
+        progress = events[0]
+        self.assertIn("Lávki", progress["title"])
+        self.assertIn("Step", progress["translations"]["eng"]["title"])
+        result = events[-1]["data"]
+        notice = result["step3_improvements"][0]
+        self.assertIn("disabled", result["improvement_translations"][notice]["eng"])
+        self.assertIn("gaska", result["language_tips"][0]["message"])
+
+    async def test_translated_tartu_draft_gets_localized_tips(self):
+        req = main.TranslateRequest(text="Hello", source_lang="eng", use_llm=False)
+        with (
+            patch("main.call_tartu_mt", new=AsyncMock(return_value="25%")) as tartu,
+            patch("main.call_divvun_grammar", new=AsyncMock(return_value={"errs": []})),
+            patch("main.call_divvun_speller", new=AsyncMock(return_value=[])),
+        ):
+            events = [event async for event in main.run_translation_pipeline_events(req)]
+        tartu.assert_awaited_once_with("Hello", src="eng", tgt="sme")
+        self.assertIn("Step 1", events[0]["title"])
+        self.assertEqual(events[-1]["data"]["step3_final_text"], "25%")
+        self.assertIn("space", events[-1]["data"]["language_tips"][0]["message"])
+
     async def test_tartu_failure_does_not_feed_source_text_into_divvun(self):
         req = main.TranslateRequest(
             text="Länsstyrelsen har gett tillstånd.",

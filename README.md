@@ -14,6 +14,24 @@ Et helhetlig oversettelses-, språkvask- og korrekturverktøy for nordsamisk (*d
 - **Egen ordliste / terminologi & hurtigoppslag i Sátni.org:** Legg inn faste fagtermer (`kildeord = samisk term`) og slå opp markerte ord direkte i Giellagáldus termbase på [Sátni.org](https://satni.org).
 - **Endringsvisning (Diff) & samisk spesialtegn-rad:** Se nøyaktig hvilke ord som ble endret i språkvasken, og sett raskt inn `Á á Č č Đ đ Ŋ ŋ Š š Ŧ ŧ Ž ž ” –`.
 - **Raskt, selvstendig webgrensesnitt uten CDN-avhengigheter:** Ingen ekstern JS-kompilering ved oppstart, full tastatur- og skjermleserstøtte, avbryt-knapp (`AbortController`) og sikker nøkkelhåndtering via HTTP-headere.
+- **Språkvalg:** Grensesnitt, fremdrift og lokale språkråd følger valgt kildespråk (norsk, svensk, finsk, engelsk eller nordsamisk). Gemini-genererte råd og merknader fra eksterne tjenester kan foreløpig ha et annet språk.
+
+### Vedlikehold av språkversjoner
+
+Når du skal rette eller forbedre en oversettelse i grensesnittet, oppdater den tilsvarende teksten i alle fem språkene:
+
+- `static/ui-strings.js` inneholder synlige grensesnittstekster, statusmeldinger, tilgjengelighetstekster og de innebygde språkreglene. Nøklene skal være identiske for `nor`, `swe`, `fin`, `eng` og `sme`.
+- `static/tips.json` inneholder oversettelsene av lokale, automatiske språkråd. Behold regelenes ID-er og `{plassholdere}` uendret; de kobles til resultatene fra `local_heuristic_checks` i `main.py`.
+- `static/server-messages.json` inneholder fremdriftsmeldinger og servergenererte, lokale varsler. Hvert element i en språkoversettelse følger rekkefølgen norsk, svensk, finsk, engelsk og nordsamisk.
+- `static/app.js` kobler katalogtekstene til grensesnittet og håndterer språkbytte. Legg nye synlige tekster i katalogen, ikke som enkeltstående strenger i visningslogikken.
+
+Kontroller at plassholdere som `{count}` finnes i alle språkversjoner, og kjør testene etter endringer:
+
+```bash
+pytest
+```
+
+Gemini-genererte råd og forklaringer direkte fra eksterne tjenester er ikke dekket av disse katalogene ennå.
 
 ## Språklig normgrunnlag
 1. **Sámediggi & Sámi Giellagáldu: Riektačállinrávvagat (reviderejuvvon 2019)** – Tegnsetting (`”...”`, komma, tankestrek `–`, skråstrek), sammensatte ord og flerordsuttrykk (*Min Áigi -aviisa*), store/små forbokstaver, tall- og datobøyning, fremmedord og laktapartihkkalat.

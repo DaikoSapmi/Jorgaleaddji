@@ -1,0 +1,86 @@
+{
+  "Partihkkal -go vs. konjunkšuvdna jos": {
+    "swe": ["Frågepartikeln -go och konjunktionen jos", "Undvik 'jos' efter 'in dieđe' i indirekta frågor. Använd frågepartikeln '-go' på verbet (t.ex. 'In dieđe boahtágo son odne')."],
+    "fin": ["Kysymyspartikkeli -go ja konjunktio jos", "Vältä sanaa 'jos' ilmauksen 'in dieđe' jälkeen epäsuorissa kysymyksissä. Käytä verbissä kysymyspartikkelia '-go' (esim. 'In dieđe boahtágo son odne')."],
+    "eng": ["Question particle -go and conjunction jos", "Avoid 'jos' after 'in dieđe' in indirect questions. Use the question particle '-go' on the verb (e.g. 'In dieđe boahtágo son odne')."],
+    "sme": ["Jearranpartihkkal -go ja konjunkšuvdna jos", "Ale geavat sáni 'jos' maŋŋel sániid 'in dieđe' njuolggakeahtes jearaldagain. Geavat jearranpartihkkala '-go' vearbbas (omd. 'In dieđe boahtágo son odne')."]
+  },
+  "Konjunkšuvdna go": {
+    "swe": ["Konjunktionen go", "Undvik blandformen 'enngo'. Använd bara 'go' vid jämförelse (t.ex. 'buoret go dát')."],
+    "fin": ["Konjunktio go", "Vältä sekamuotoa 'enngo'. Käytä vertailussa vain sanaa 'go' (esim. 'buoret go dát')."],
+    "eng": ["Conjunction go", "Avoid the mixed form 'enngo'. Use only 'go' for comparisons (e.g. 'buoret go dát')."],
+    "sme": ["Konjunkšuvdna go", "Ale geavat seaguhussáni 'enngo'. Geavat dušše sáni 'go' buohtastahttimis (omd. 'buoret go dát')."]
+  },
+  "Dahje vs. Vai": {
+    "swe": ["Dahje eller vai", "I frågor används 'vai' i stället för 'dahje' (t.ex. 'Boađátgo ihttin vai bearjadaga?')."],
+    "fin": ["Dahje vai vai", "Kysymyksissä käytetään sanaa 'vai' sanan 'dahje' sijaan (esim. 'Boađátgo ihttin vai bearjadaga?')."],
+    "eng": ["Dahje or vai", "In questions, use 'vai' rather than 'dahje' (e.g. 'Boađátgo ihttin vai bearjadaga?')."],
+    "sme": ["Dahje vai vai", "Jearaldagain galgá geavahit sáni 'vai', ii sáni 'dahje' (omd. 'Boađátgo ihttin vai bearjadaga?')."]
+  },
+  "Ektui vs. hárrái / dáfus / illativ": {
+    "swe": ["Ektui eller hárrái / dáfus / illativ", "Kontrollera om 'ektui' används för en verklig jämförelse. Ofta passar 'hárrái', 'dáfus' eller ren illativ bättre."],
+    "fin": ["Ektui vai hárrái / dáfus / illatiivi", "Tarkista, käytetäänkö sanaa 'ektui' todelliseen vertailuun. Usein 'hárrái', 'dáfus' tai pelkkä illatiivi sopii paremmin."],
+    "eng": ["Ektui or hárrái / dáfus / illative", "Check whether 'ektui' expresses an actual comparison. Often 'hárrái', 'dáfus' or the illative alone is more appropriate."],
+    "sme": ["Ektui vai hárrái / dáfus / illatiiva", "Dárkkis geavahuvvo go 'ektui' duohta buohtastahttimii. Dávjá heive 'hárrái', 'dáfus' dahje dušše illatiiva buorebut."]
+  },
+  "Norsk påvirkning (olggos)": {
+    "swe": ["Norskt inflytande (olggos)", "På samiska säger man bara 'gávnnahii' (fann ut), utan 'olggos'."],
+    "fin": ["Norjan vaikutus (olggos)", "Saameksi sanotaan vain 'gávnnahii' (sai selville), ilman sanaa 'olggos'."],
+    "eng": ["Norwegian influence (olggos)", "In Sámi, use 'gávnnahii' (found out) without 'olggos'."],
+    "sme": ["Dárogiela váikkuhus (olggos)", "Sámegillii dadjá dušše 'gávnnahii', iige 'olggos'."]
+  },
+  "Norsk påvirkning (olggosoaidnit)": {
+    "swe": ["Norskt inflytande (olggosoaidnit)", "Undvik 'olggosoaidnit' (se ut). Använd bara 'oaidnit' ('Makkár dat lea oaidnit?')."],
+    "fin": ["Norjan vaikutus (olggosoaidnit)", "Vältä sanaa 'olggosoaidnit' (näyttää). Käytä vain sanaa 'oaidnit' ('Makkár dat lea oaidnit?')."],
+    "eng": ["Norwegian influence (olggosoaidnit)", "Avoid 'olggosoaidnit' (look like). Use only 'oaidnit' ('Makkár dat lea oaidnit?')."],
+    "sme": ["Dárogiela váikkuhus (olggosoaidnit)", "Ale geavat sáni 'olggosoaidnit'. Geavat dušše sáni 'oaidnit' ('Makkár dat lea oaidnit?')."]
+  },
+  "Aktiiva giella (Passiv → Aktiv)": {
+    "swe": ["Aktivt språk (passiv → aktiv)", "Texten innehåller ett passivt verb på -(oj)uvvot. Kontrollera om den handlande nämns; i så fall bör meningen göras aktiv."],
+    "fin": ["Aktiivinen kieli (passiivi → aktiivi)", "Tekstissä on passiiviverbi, jonka pääte on -(oj)uvvot. Tarkista, mainitaanko tekijä; jos mainitaan, lause kannattaa muuttaa aktiiviseksi."],
+    "eng": ["Active language (passive → active)", "The text contains a passive verb ending in -(oj)uvvot. Check whether the actor is named; if so, consider using the active voice."],
+    "sme": ["Aktiiva giella (passiiva → aktiiva)", "Teavsttas lea passiiva vearba, mii nohká -(oj)uvvot. Dárkkis namuhuvvo go dahkki; jos nu lea, sáhttá cealkaga dahkat aktiivan."]
+  },
+  "Laktapartihkkalat (sammenskriving)": {
+    "swe": ["Partikelord (sammanskrivning)", "Fasta partikelord skrivs ihop: 'dieđusge', 'dattetge', 'iešguhtege', 'oktage', 'veaháge', 'mihkkege', 'goitge', 'almmatge'."],
+    "fin": ["Partikkelisanat (yhteen kirjoittaminen)", "Kiinteät partikkelisanat kirjoitetaan yhteen: 'dieđusge', 'dattetge', 'iešguhtege', 'oktage', 'veaháge', 'mihkkege', 'goitge', 'almmatge'."],
+    "eng": ["Particle words (writing together)", "Write fixed particle words as one word: 'dieđusge', 'dattetge', 'iešguhtege', 'oktage', 'veaháge', 'mihkkege', 'goitge', 'almmatge'."],
+    "sme": ["Laktapartihkkalat (oktii čállin)", "Laktapartihkkalat čállojuvvojit oktii: 'dieđusge', 'dattetge', 'iešguhtege', 'oktage', 'veaháge', 'mihkkege', 'goitge', 'almmatge'."]
+  },
+  "Proseantamearka (gaska)": {
+    "swe": ["Procenttecken (mellanslag)", "Det ska vara mellanslag mellan talet och procenttecknet (t.ex. '25 %', inte '25%')."],
+    "fin": ["Prosenttimerkki (välilyönti)", "Luvun ja prosenttimerkin välissä pitää olla välilyönti (esim. '25 %', ei '25%')."],
+    "eng": ["Percent sign (spacing)", "Use a space between the number and the percent sign (e.g. '25 %', not '25%')."],
+    "sme": ["Proseantamearka (gaska)", "Lohku ja proseantamearkka gaskkas galgá leat gaska (omd. '25 %', ii '25%')."]
+  },
+  "Proseantamearri vs. %-mearri": {
+    "swe": ["Proseantamearri eller %-mearri", "Skriv 'proseantamearri' med bokstäver, inte '%-mearri'."],
+    "fin": ["Proseantamearri vai %-mearri", "Kirjoita 'proseantamearri' kirjaimin, älä '%-mearri'."],
+    "eng": ["Proseantamearri or %-mearri", "Write 'proseantamearri' in letters, not '%-mearri'."],
+    "sme": ["Proseantamearri vai %-mearri", "Čále 'proseantamearri' bustávaiguin, ii '%-mearri'."]
+  },
+  "Báikenamat eai noga -iija": {
+    "swe": ["Ortnamn slutar inte på -iija", "Ortnamn slutar inte på '-iija' på samiska (hittade: {examples}). Skriv t.ex. 'Tansania', 'Italia', 'Spania'."],
+    "fin": ["Paikannimet eivät pääty -iija", "Saamenkieliset paikannimet eivät pääty '-iija' (löytyi: {examples}). Kirjoita esim. 'Tansania', 'Italia', 'Spania'."],
+    "eng": ["Place names do not end in -iija", "Sámi place names do not end in '-iija' (found: {examples}). Write e.g. 'Tansania', 'Italia', 'Spania'."],
+    "sme": ["Báikenamat eai noga -iija", "Sámegiel báikenamat eai noga '-iija' (gávdnui: {examples}). Čále omd. 'Tansania', 'Italia', 'Spania'."]
+  },
+  "Aisttonmearkkat (Sitattegn)": {
+    "swe": ["Citattecken", "I nordsamiska används typografiska citattecken ”...” (U+201D före och efter citatet), inte engelska “...” eller norska «...»."],
+    "fin": ["Lainausmerkit", "Pohjoissaamessa käytetään lainausmerkkejä ”...” (U+201D lainauksen molemmin puolin), ei englannin “...” tai norjan «...»."],
+    "eng": ["Quotation marks", "Northern Sámi uses typographic quotation marks ”...” (U+201D before and after the quotation), not English “...” or Norwegian «...»."],
+    "sme": ["Aisttonmearkkat", "Davvisámegielas geavahuvvojit aisttonmearkkat ”...” (U+201D sitáhta ovddas ja maŋŋá), eai eaŋgalskiela “...” dahje dárogiela «...»."]
+  },
+  "Avsnittsstruktur (Fullstendighet)": {
+    "swe": ["Styckesstruktur (fullständighet)", "Källtexten har {source_count} stycken och den samiska texten har {target_count}. Kontrollera att inga stycken har utelämnats eller slagits ihop."],
+    "fin": ["Kappalejako (täydellisyys)", "Lähtötekstissä on {source_count} kappaletta ja saamenkielisessä tekstissä {target_count}. Tarkista, ettei kappaleita ole jätetty pois tai yhdistetty."],
+    "eng": ["Paragraph structure (completeness)", "The source has {source_count} paragraphs and the Sámi text has {target_count}. Check that no paragraphs were omitted or combined."],
+    "sme": ["Oasisjuohku (ollislašvuohta)", "Gáldoteavsttas leat {source_count} oasi ja sámegiel teavsttas {target_count}. Dárkkis ahte eai leat oasit bálkestuvvon eret dahje ovttastahtton."]
+  },
+  "Årstall fra kildeteksten": {
+    "swe": ["Årtal i källtexten", "Årtal i källtexten som inte hittades som siffror i måltexten: {years}."],
+    "fin": ["Lähtötekstin vuosiluvut", "Lähtötekstin vuosiluvut, joita ei löytynyt kohdetekstistä numeroina: {years}."],
+    "eng": ["Years in the source text", "Years in the source text not found as digits in the target text: {years}."],
+    "sme": ["Jahkelogut gáldoteavsttas", "Jahkelogut gáldoteavsttas mat eai gávdnon nummiriin jorgalusas: {years}."]
+  }
+}

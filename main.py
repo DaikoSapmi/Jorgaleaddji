@@ -70,36 +70,26 @@ SOURCE_LANGUAGES: Dict[str, Dict[str, object]] = {
         "label_no": "Norsk",
         "source_heading": "NORSK KILDETEKST",
         "tartu_candidates": ["nor", "nob"],
-        "step1_title": "Trinn 1 av 4: TartuNLP Norsk → Samisk",
-        "step1_detail": "Henter morfologisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)...",
     },
     "swe": {
         "label_no": "Svensk",
         "source_heading": "SVENSK KILDETEKST",
         "tartu_candidates": ["swe", "sv"],
-        "step1_title": "Trinn 1 av 4: TartuNLP Svensk → Samisk",
-        "step1_detail": "Henter svensk-til-nordsamisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)...",
     },
     "fin": {
         "label_no": "Finsk",
         "source_heading": "FINSK KILDETEKST",
         "tartu_candidates": ["fin", "fi"],
-        "step1_title": "Trinn 1 av 4: TartuNLP Finsk → Samisk",
-        "step1_detail": "Henter finsk-til-nordsamisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)...",
     },
     "eng": {
         "label_no": "Engelsk",
         "source_heading": "ENGELSK KILDETEKST",
         "tartu_candidates": ["eng", "en"],
-        "step1_title": "Trinn 1 av 4: TartuNLP Engelsk → Samisk",
-        "step1_detail": "Henter engelsk-til-nordsamisk førsteutkast fra Universitetet i Tartu (translate.ut.ee)...",
     },
     "sme": {
         "label_no": "Nordsamisk",
         "source_heading": "NORDSAMISK KILDETEKST",
         "tartu_candidates": [],
-        "step1_title": "Trinn 1 av 4: Klargjør nordsamisk tekst",
-        "step1_detail": "Kildeteksten er allerede på nordsamisk – hopper over maskinoversettelse...",
     },
 }
 
@@ -183,6 +173,39 @@ GIELLAVERDDE_SKILL_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), ".agent", "skills", "giellaverdde"
 )
 GIELLAVERDDE_REFS_DIR = os.path.join(GIELLAVERDDE_SKILL_DIR, "references")
+
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "tips.json"), encoding="utf-8") as fh:
+    TIP_TRANSLATIONS = json.load(fh)
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "server-messages.json"), encoding="utf-8") as fh:
+    SERVER_MESSAGES = json.load(fh)
+
+UI_LANGUAGES = ("nor", "swe", "fin", "eng", "sme")
+
+
+def ui_message(lang: str, key: str, **params: object) -> str:
+    return SERVER_MESSAGES[key][UI_LANGUAGES.index(lang)].format(**params)
+
+
+def add_local_improvement(result: dict, lang: str, key: str, *, first: bool = False, **params: object) -> None:
+    variants = {language: ui_message(language, key, **params) for language in UI_LANGUAGES}
+    message = variants[lang]
+    improvements = result.setdefault("improvements", [])
+    if first:
+        improvements.insert(0, message)
+    else:
+        improvements.append(message)
+    result.setdefault("improvement_translations", {})[message] = variants
+
+
+def progress_event(lang: str, step: int, percent: int, title: str, detail: str, **params: object) -> dict:
+    translations = {
+        language: {
+            "title": ui_message(language, title, **params),
+            "detail": ui_message(language, detail, **params),
+        }
+        for language in UI_LANGUAGES
+    }
+    return {"type": "progress", "step": step, "percent": percent, **translations[lang], "translations": translations}
 
 
 def _strip_yaml_frontmatter(text: str) -> str:
@@ -383,6 +406,12 @@ class TranslateRequest(BaseModel):
 
 class ProofreadRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=50_000)
+    source_lang: str = Field(default="nor")
+
+    @field_validator("source_lang")
+    @classmethod
+    def validate_source_lang(cls, v: str) -> str:
+        return TranslateRequest.validate_source_lang(v)
 
 
 @asynccontextmanager
@@ -412,16 +441,14 @@ def sanitize_error_message(raw_msg: str, secret_key: str = "") -> str:
     return cleaned[:280]
 
 
-def normalize_gemini_model(model: Optional[str]) -> Tuple[str, Optional[str]]:
+def normalize_gemini_model(model: Optional[str], source_lang: str = "nor") -> Tuple[str, Optional[str]]:
     """Erstatter avviklede Gemini 1.5/2.0/2.5-modeller med gemini-4-hydrogen."""
     candidate = (model or GEMINI_MODEL or DEFAULT_GEMINI_MODEL).strip()
     if not candidate:
         candidate = DEFAULT_GEMINI_MODEL
     lower = candidate.lower()
     if any(lower.startswith(prefix) for prefix in DEPRECATED_MODEL_PREFIXES):
-        note = (
-            f"Merk: '{candidate}' er avviklet og ble automatisk erstattet med 'gemini-4-hydrogen'."
-        )
+        note = ui_message(source_lang, "deprecated", model=candidate)
         return "gemini-4-hydrogen", note
     return candidate, None
 
@@ -687,6 +714,19 @@ async def call_divvun_grammar(text: str) -> dict:
     return {"text": text, "errs": []}
 
 
+def localize_speller_errors(errors: List[dict], lang: str) -> None:
+    for error in errors:
+        translations = {
+            language: {
+                "title": ui_message(language, "speller_title"),
+                "description": ui_message(language, "speller_description"),
+            }
+            for language in UI_LANGUAGES
+        }
+        error.update(translations[lang])
+        error["translations"] = translations
+
+
 async def call_divvun_speller(text: str) -> List[dict]:
     """Kaller Divvun GiellaLT Speller API (/speller/se) for siste ord-for-ord rettskrivingstest."""
     if not text or not text.strip():
@@ -884,7 +924,7 @@ def _is_valid_iija_loanword(word: str) -> bool:
     return any(low.endswith(sfx) for sfx in VALID_IIJA_LOANWORD_SUFFIXES)
 
 
-def local_heuristic_checks(source_text: str, sami_text: str) -> List[dict]:
+def local_heuristic_checks(source_text: str, sami_text: str, source_lang: str = "nor") -> List[dict]:
     """Lokal regelsjekker basert på Riektačállinrávvagat (2019), NRK Sámi Giellagiehtagirji og kilde-samsvar."""
     if not sami_text or not sami_text.strip():
         return []
@@ -975,6 +1015,7 @@ def local_heuristic_checks(source_text: str, sami_text: str) -> List[dict]:
             "rule": "Báikenamat eai noga -iija",
             "message": f"Stedsnavn ender aldri på '-iija' på samisk (fant: {examples}). Skriv f.eks. 'Tansania', 'Italia', 'Spania'.",
             "reference": "Riektačállinrávvagat s. 43",
+            "params": {"examples": examples},
         })
 
     # Varsle KUN ved engelske åpningsanførselstegn “ (U+201C), tyske „ (U+201E) eller norske vinkeltegn «» – ALDRI ved gyldig samisk ” (U+201D)!
@@ -994,6 +1035,7 @@ def local_heuristic_checks(source_text: str, sami_text: str) -> List[dict]:
                 "rule": "Avsnittsstruktur (Fullstendighet)",
                 "message": f"Kildeteksten har {len(src_paras)} avsnitt, mens den samiske teksten har {len(tgt_paras)} avsnitt. Kontroller at ingen avsnitt er utelatt eller slått sammen.",
                 "reference": "Kvalitetskontroll",
+                "params": {"source_count": len(src_paras), "target_count": len(tgt_paras)},
             })
 
         src_years = set(re.findall(r"\b(?:1[89]\d{2}|20\d{2})\b", source_text))
@@ -1003,8 +1045,37 @@ def local_heuristic_checks(source_text: str, sami_text: str) -> List[dict]:
                 "rule": "Årstall fra kildeteksten",
                 "message": f"Årstall i kildeteksten som ikke ble funnet som sifre i målteksten: {', '.join(missing_years)}.",
                 "reference": "Kvalitetskontroll",
+                "params": {"years": ", ".join(missing_years)},
             })
 
+    for tip in tips:
+        original_rule = tip["rule"]
+        variants = {"nor": {key: tip[key] for key in ("rule", "message", "reference")}}
+        for lang in UI_LANGUAGES[1:]:
+            title, message = TIP_TRANSLATIONS[original_rule][lang]
+            reference = tip["reference"]
+            if reference == "Kvalitetskontroll":
+                reference = {
+                    "swe": "Kvalitetskontroll",
+                    "fin": "Laadunvalvonta",
+                    "eng": "Quality control",
+                    "sme": "Kvalitehtadárkkisteapmi",
+                }[lang]
+            else:
+                if lang == "eng":
+                    reference = reference.replace("s. ", "p. ")
+                reference = reference.replace(
+                    "Ordavledning",
+                    {"swe": "Ordavledning", "fin": "Sananjohtaminen", "eng": "Word derivation", "sme": "Sátnesuorggideapmi"}[lang],
+                )
+            variants[lang] = {
+                "rule": title,
+                "message": message.format(**tip.get("params", {})),
+                "reference": reference,
+            }
+        tip.update(variants[source_lang])
+        tip["translations"] = variants
+        tip.pop("params", None)
     return tips
 
 
@@ -1197,24 +1268,18 @@ async def call_gemini_refiner(
 ) -> dict:
     """Trinn 3: Oversetter / språkvasker til nordsamisk via Google GenAI Interactions API (Gemini 4)."""
     active_key = (override_key or GEMINI_API_KEY).strip()
-    requested_model, deprecation_note = normalize_gemini_model(override_model)
+    requested_model, deprecation_note = normalize_gemini_model(override_model, source_lang)
     fallback_text = divvun_corrected or tartu_draft or (source_text if source_lang == "sme" else "")
 
     if not active_key or active_key == PLACEHOLDER_KEY:
-        msg = (
-            "GEMINI_API_KEY er ikke lagt inn ennå (legg den i .env eller under Innstillinger). "
-            + (
-                "Viser tekst korrigert av Divvun API."
-                if fallback_text
-                else "Kunne ikke oversette fordi verken TartuNLP eller Gemini API-nøkkel var tilgjengelig."
-            )
-        )
-        return {
+        result = {
             "final_translation": fallback_text,
-            "improvements": [msg],
+            "improvements": [],
             "llm_active": False,
             "used_model": None,
         }
+        add_local_improvement(result, source_lang, "missing_key_fallback" if fallback_text else "missing_key_no_fallback")
+        return result
 
     compact_errs = [
         {
@@ -1230,7 +1295,7 @@ async def call_gemini_refiner(
         tartu_draft=tartu_draft,
         divvun_corrected=divvun_corrected,
         compact_errs=compact_errs,
-        local_tips=local_tips,
+        local_tips=[{k: v for k, v in tip.items() if k != "translations"} for tip in local_tips],
         source_lang=source_lang,
     )
     system_instruction = build_system_instruction(source_lang=source_lang, glossary=glossary)
@@ -1252,12 +1317,14 @@ async def call_gemini_refiner(
         )
     except Exception as exc:
         safe_err = sanitize_error_message(str(exc), active_key)
-        return {
+        result = {
             "final_translation": fallback_text,
-            "improvements": [f"Kunne ikke initialisere Gemini SDK: {safe_err}"],
+            "improvements": [],
             "llm_active": False,
             "used_model": None,
         }
+        add_local_improvement(result, source_lang, "sdk_error", error=safe_err)
+        return result
 
     tried_dynamic_list = False
     idx = 0
@@ -1341,30 +1408,29 @@ async def call_gemini_refiner(
                         improvements = list(parsed.get("improvements") or [])
 
                 if final_trans and final_trans.strip():
-                    if consulted_refs:
-                        improvements.append(
-                            f"Giellaverdde-oppslag brukt: {', '.join(consulted_refs)}"
-                        )
-                    if getattr(interaction, "status", None) == "incomplete":
-                        improvements.insert(
-                            0,
-                            "Advarsel: Svaret fra modellen nådde maks utdata-lengde og kan være avkortet. Del gjerne ekstra lange tekster i to.",
-                        )
-                    if candidate_model != requested_model:
-                        improvements.insert(
-                            0,
-                            f"Merk: '{requested_model}' var utilgjengelig eller over kvoten, så systemet brukte '{candidate_model}'.",
-                        )
-                    if deprecation_note:
-                        improvements.insert(0, deprecation_note)
-                    return {
+                    result = {
                         "final_translation": final_trans,
                         "improvements": improvements,
                         "llm_active": True,
                         "used_model": candidate_model,
                     }
+                    if consulted_refs:
+                        add_local_improvement(result, source_lang, "references_used", references=", ".join(consulted_refs))
+                    if getattr(interaction, "status", None) == "incomplete":
+                        add_local_improvement(result, source_lang, "incomplete", first=True)
+                    if candidate_model != requested_model:
+                        add_local_improvement(
+                            result, source_lang, "fallback_model", first=True,
+                            requested=requested_model, used=candidate_model,
+                        )
+                    if deprecation_note:
+                        add_local_improvement(
+                            result, source_lang, "deprecated", first=True,
+                            model=(override_model or GEMINI_MODEL or DEFAULT_GEMINI_MODEL).strip(),
+                        )
+                    return result
 
-                last_error_msg = f"Kunne ikke tolke strukturert svar fra '{candidate_model}'."
+                last_error_msg = ui_message(source_lang, "invalid_response", model=candidate_model)
                 break
             except Exception as exc:
                 status_code, should_fallback = _classify_gemini_exception(exc)
@@ -1386,24 +1452,25 @@ async def call_gemini_refiner(
                                 models_to_try.append(m["id"])
                     break
 
-                return {
+                result = {
                     "final_translation": fallback_text,
-                    "improvements": [
-                        f"Feil mot Gemini API for '{candidate_model}': {safe_err}. "
-                        "Ved ekstra lange tekster kan du prøve 'gemini-4-hydrogen' eller tenkenivå 'low'."
-                    ],
+                    "improvements": [],
                     "llm_active": False,
                     "used_model": candidate_model,
                 }
+                add_local_improvement(result, source_lang, "api_error", model=candidate_model, error=safe_err)
+                return result
 
         idx += 1
 
-    return {
+    result = {
         "final_translation": fallback_text,
-        "improvements": [f"Ingen Gemini-modell svarte. Siste feilmelding: {last_error_msg}"],
+        "improvements": [],
         "llm_active": False,
         "used_model": requested_model,
     }
+    add_local_improvement(result, source_lang, "no_model", error=last_error_msg)
+    return result
 
 
 async def run_translation_pipeline_events(
@@ -1413,17 +1480,14 @@ async def run_translation_pipeline_events(
     """Felles pipeline-generator som brukes av både /api/translate og /api/translate-stream."""
     src_lang = req.source_lang
     is_sami_source = src_lang == "sme"
-    lang_cfg = SOURCE_LANGUAGES.get(src_lang, SOURCE_LANGUAGES["nor"])
     effective_key = (req.api_key or header_api_key or GEMINI_API_KEY).strip() or None
 
     # Trinn 1: Klargjøring eller TartuNLP
-    yield {
-        "type": "progress",
-        "step": 1,
-        "percent": 20,
-        "title": str(lang_cfg["step1_title"]),
-        "detail": str(lang_cfg["step1_detail"]),
-    }
+    yield progress_event(
+        src_lang, 1, 20, "step1_sami" if is_sami_source else "step1_translation",
+        "step1_sami_detail" if is_sami_source else "step1_detail",
+        language={"nor": "Norsk", "swe": "Svenska", "fin": "Suomi", "eng": "English"}.get(src_lang, ""),
+    )
 
     if is_sami_source:
         tartu_raw: Optional[str] = req.text
@@ -1433,21 +1497,14 @@ async def run_translation_pipeline_events(
         tartu_display = (
             tartu_raw
             if tartu_raw is not None
-            else "[TartuNLP støttet ikke språkparet eller svarte ikke – bruker Gemini og Divvun direkte]"
+            else ui_message(src_lang, "no_tartu")
         )
 
     # Trinn 2: Divvun 1. runde (kjøres KUN når vi faktisk har samisk tekst å sjekke!)
-    yield {
-        "type": "progress",
-        "step": 2,
-        "percent": 40,
-        "title": "Trinn 2 av 4: Divvun Grammatikk & Korrektur",
-        "detail": (
-            "Analyserer samisk utkast med UiT GiellaLT / Divvun API og kjører språkregelsjekker..."
-            if tartu_raw is not None
-            else "Hopper over første Divvun-sjekk siden TartuNLP ikke leverte samisk råutkast..."
-        ),
-    }
+    yield progress_event(
+        src_lang, 2, 40, "step2",
+        "step2_detail" if tartu_raw is not None else "step2_skipped",
+    )
 
     if tartu_raw is not None:
         divvun_initial = await call_divvun_grammar(tartu_raw)
@@ -1465,6 +1522,7 @@ async def run_translation_pipeline_events(
         local_tips = local_heuristic_checks(
             "" if is_sami_source else req.text,
             divvun_pre_corrected or "",
+            src_lang,
         )
     else:
         initial_errs = []
@@ -1474,23 +1532,10 @@ async def run_translation_pipeline_events(
     # Trinn 3: Gemini 4 Språkvask / Oversettelse
     if req.use_llm:
         chosen_model, _ = normalize_gemini_model(req.model)
-        title_step3 = (
-            f"Trinn 3 av 4: Gemini Språkvask & Korrektur ({chosen_model})"
-            if is_sami_source
-            else f"Trinn 3 av 4: Gemini Oversettelse & Språkvask ({chosen_model})"
+        yield progress_event(
+            src_lang, 3, 70, "step3_sami" if is_sami_source else "step3_translation",
+            "step3_sami_detail" if is_sami_source else "step3_detail", model=chosen_model,
         )
-        detail_step3 = (
-            "Retter feil og forbedrer stilen etter Riektačállinrávvagat og Giellagiehtagirji..."
-            if is_sami_source
-            else "Utarbeider idiomatisk nordsamisk etter Riektačállinrávvagat og Giellagiehtagirji..."
-        )
-        yield {
-            "type": "progress",
-            "step": 3,
-            "percent": 70,
-            "title": title_step3,
-            "detail": detail_step3,
-        }
         llm_result = await call_gemini_refiner(
             source_text=req.text,
             tartu_draft=tartu_raw,
@@ -1507,31 +1552,25 @@ async def run_translation_pipeline_events(
         if divvun_pre_corrected is None and not is_sami_source:
             llm_result = {
                 "final_translation": "",
-                "improvements": [
-                    "TartuNLP svarte ikke for valgt språk, og Gemini-språkvask er skrudd av. Aktiver Gemini språkvask i Innstillinger for å oversette."
-                ],
+                "improvements": [],
                 "llm_active": False,
                 "used_model": None,
             }
+            add_local_improvement(llm_result, src_lang, "no_translation")
         else:
             llm_result = {
                 "final_translation": divvun_pre_corrected or req.text,
-                "improvements": ["Gemini-språkvask deaktivert av bruker."],
+                "improvements": [],
                 "llm_active": False,
                 "used_model": None,
             }
+            add_local_improvement(llm_result, src_lang, "gemini_off")
 
     gemini_text = llm_result.get("final_translation") or ""
     llm_succeeded = bool(llm_result.get("llm_active", False))
 
     # Trinn 4: Sluttkontroll med Divvun
-    yield {
-        "type": "progress",
-        "step": 4,
-        "percent": 88,
-        "title": "Trinn 4 av 4: Divvun Sluttkontroll & Autoretting",
-        "detail": "Kontrollerer det ferdige produktet med Divvun og luker ut eventuelle siste merknader...",
-    }
+    yield progress_event(src_lang, 4, 88, "step4", "step4_detail")
 
     final_text = gemini_text
     final_divvun = await call_divvun_grammar(final_text) if final_text.strip() else {"errs": []}
@@ -1540,13 +1579,9 @@ async def run_translation_pipeline_events(
     if req.auto_apply_divvun and final_errs and final_text.strip():
         initial_err_count = len(final_errs)
         if llm_succeeded:
-            yield {
-                "type": "progress",
-                "step": 4,
-                "percent": 94,
-                "title": f"Trinn 4 av 4: Fikser {initial_err_count} Divvun-merknader i sluttproduktet...",
-                "detail": "Gemini og Divvun retter siste bøyings- og rettskrivingsmerknader...",
-            }
+            yield progress_event(
+                src_lang, 4, 94, "step4_fix", "step4_fix_detail", count=initial_err_count,
+            )
             refined_by_divvun = await call_gemini_final_divvun_pass(
                 source_text=req.text,
                 gemini_draft=final_text,
@@ -1576,16 +1611,15 @@ async def run_translation_pipeline_events(
 
         fixed_count = max(0, initial_err_count - len(final_errs))
         if fixed_count > 0:
-            llm_result.setdefault("improvements", []).append(
-                f"Divvun-sluttkontroll: Rettet automatisk {fixed_count} av {initial_err_count} Divvun-merknader i sluttproduktet."
-            )
+            add_local_improvement(llm_result, src_lang, "fixed_count", fixed=fixed_count, total=initial_err_count)
 
     # Siste ord-for-ord rettskrivingstest via Divvun Speller (/speller/se)
     speller_errs = await call_divvun_speller(final_text) if final_text.strip() else []
+    localize_speller_errors(speller_errs, src_lang)
     merged_final_errs = merge_divvun_errors(final_errs, speller_errs)
 
     final_local_tips = (
-        local_heuristic_checks("" if is_sami_source else req.text, final_text)
+        local_heuristic_checks("" if is_sami_source else req.text, final_text, src_lang)
         if final_text.strip()
         else []
     )
@@ -1600,11 +1634,16 @@ async def run_translation_pipeline_events(
         "source_text": req.text,
         "source_lang": src_lang,
         "step1_tartu_raw": tartu_display,
+        "step1_raw_translations": (
+            {language: ui_message(language, "no_tartu") for language in UI_LANGUAGES}
+            if tartu_raw is None else {}
+        ),
         "step1_had_tartu": tartu_raw is not None,
         "step2_divvun_initial_errors": initial_errs,
         "step2_divvun_corrected": divvun_pre_corrected or "",
         "step3_final_text": final_text,
         "step3_improvements": llm_result.get("improvements", []),
+        "improvement_translations": llm_result.get("improvement_translations", {}),
         "llm_active": llm_succeeded,
         "used_model": llm_result.get("used_model"),
         "final_divvun_errors": merged_final_errs,
@@ -1626,7 +1665,7 @@ async def translate_pipeline(
     ] = None,
 ):
     if not req.text.strip():
-        raise HTTPException(status_code=400, detail="Teksten er tom.")
+        raise HTTPException(status_code=400, detail=ui_message(req.source_lang, "empty_text"))
 
     final_data = None
     async for event in run_translation_pipeline_events(req, header_api_key=x_gemini_api_key):
@@ -1634,7 +1673,7 @@ async def translate_pipeline(
             final_data = event["data"]
 
     if final_data is None:
-        raise HTTPException(status_code=500, detail="Oversettelsespipelinen leverte ikke noe resultat.")
+        raise HTTPException(status_code=500, detail=ui_message(req.source_lang, "no_result"))
     return final_data
 
 
@@ -1646,7 +1685,7 @@ async def translate_pipeline_stream(
     ] = None,
 ):
     if not req.text.strip():
-        raise HTTPException(status_code=400, detail="Teksten er tom.")
+        raise HTTPException(status_code=400, detail=ui_message(req.source_lang, "empty_text"))
 
     effective_key = (req.api_key or x_gemini_api_key or GEMINI_API_KEY).strip()
 
@@ -1669,13 +1708,14 @@ async def translate_pipeline_stream(
 async def proofread_only(req: ProofreadRequest):
     """Lar brukeren kjøre ren Divvun-korrektur + Speller (/speller/se) + språksjekk når de redigerer den samiske teksten manuelt."""
     if not req.text.strip():
-        raise HTTPException(status_code=400, detail="Teksten er tom.")
+        raise HTTPException(status_code=400, detail=ui_message(req.source_lang, "empty_text"))
     divvun_res, speller_errs = await asyncio.gather(
         call_divvun_grammar(req.text),
         call_divvun_speller(req.text),
     )
+    localize_speller_errors(speller_errs, req.source_lang)
     merged_errs = merge_divvun_errors(divvun_res.get("errs", []), speller_errs)
-    tips = local_heuristic_checks("", req.text)
+    tips = local_heuristic_checks("", req.text, req.source_lang)
     return {
         "text": req.text,
         "errs": merged_errs,
