@@ -70,7 +70,7 @@ class TestJorgaleaddjiCore(unittest.TestCase):
     def test_server_messages_cover_all_languages(self):
         self.assertTrue(all(len(messages) == len(main.UI_LANGUAGES) for messages in main.SERVER_MESSAGES.values()))
         for language in main.UI_LANGUAGES:
-            self.assertIn("42", main.ui_message(language, "step4_fix", count=42))
+            self.assertIn("Test", main.ui_message(language, "step1_translation", language="Test"))
 
     def test_ui_catalogs_have_matching_keys_and_placeholders(self):
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "ui-strings.js")
@@ -249,6 +249,61 @@ class TestAsyncPipeline(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Step 1", events[0]["title"])
         self.assertEqual(events[-1]["data"]["step3_final_text"], "25%")
         self.assertIn("space", events[-1]["data"]["language_tips"][0]["message"])
+
+    async def test_final_divvun_check_never_applies_suggestions_after_gemini(self):
+        req = main.TranslateRequest(
+            text="Original source",
+            source_lang="sme",
+            use_llm=True,
+            auto_apply_divvun=True,
+        )
+        initial_error = {
+            "error_text": "oldword",
+            "start_index": 0,
+            "end_index": 7,
+            "suggestions": ["oldfix"],
+        }
+        final_error = {
+            "error_text": "geminiword",
+            "start_index": 0,
+            "end_index": 10,
+            "suggestions": ["divvunfix"],
+        }
+        spell_error = {
+            "error_text": "otherword",
+            "start_index": 11,
+            "end_index": 20,
+            "suggestions": ["spellfix"],
+            "source": "speller",
+        }
+
+        with (
+            patch("main.call_divvun_grammar", new=AsyncMock(side_effect=[
+                {"errs": [initial_error]},
+                {"errs": [final_error]},
+            ])),
+            patch("main.apply_divvun_suggestions", return_value="initially corrected") as apply_suggestions,
+            patch("main.call_gemini_refiner", new=AsyncMock(return_value={
+                "final_translation": "geminiword otherword",
+                "improvements": [],
+                "llm_active": True,
+                "used_model": "gemini-4-hydrogen",
+            })),
+            patch("main.call_divvun_speller", new=AsyncMock(return_value=[spell_error])),
+        ):
+            events = [event async for event in main.run_translation_pipeline_events(req)]
+
+        data = events[-1]["data"]
+        self.assertEqual(data["step3_final_text"], "geminiword otherword")
+        self.assertEqual(apply_suggestions.call_count, 1)
+        self.assertEqual(
+            {error["source"] for error in data["final_divvun_errors"]},
+            {"grammar", "speller"},
+        )
+        grammar_result = next(error for error in data["final_divvun_errors"] if error["source"] == "grammar")
+        self.assertEqual(grammar_result["suggestions"], ["divvunfix"])
+        speller_result = next(error for error in data["final_divvun_errors"] if error["source"] == "speller")
+        self.assertEqual(speller_result["suggestions"], ["spellfix"])
 
     async def test_tartu_failure_does_not_feed_source_text_into_divvun(self):
         req = main.TranslateRequest(

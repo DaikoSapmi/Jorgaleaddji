@@ -13,6 +13,7 @@ Et helhetlig oversettelses-, språkvask- og korrekturverktøy for nordsamisk (*d
 - **Google GenAI SDK (`google-genai >= 3.2.0`) & Interactions API:** Støtter `gemini-4-hydrogen` (standard), `gemini-4-argon`, `gemini-4-carbon` og `gemini-3.5-flash-lite`, med valgbar tenkedybde (`low`, `medium`, `high`). Gemini-forespørsler har en timeout på 10 minutter.
 - **Egen ordliste / terminologi & hurtigoppslag i Sátni.org:** Legg inn faste fagtermer (`kildeord = samisk term`) og slå opp markerte ord direkte i Giellagáldus termbase på [Sátni.org](https://satni.org).
 - **Endringsvisning (Diff) & samisk spesialtegn-rad:** Se nøyaktig hvilke ord som ble endret i språkvasken, og sett raskt inn `Á á Č č Đ đ Ŋ ŋ Š š Ŧ ŧ Ž ž ” –`.
+- **Ikke-påtrengende sluttkontroll:** Etter Gemini markerer Divvun grammatikk- og staveforslag for vurdering. Sluttkontrollen endrer ikke teksten automatisk; forslag brukes bare når brukeren klikker på dem. Innstillingen for automatisk Divvun-retting gjelder første runde før Gemini.
 - **Raskt, selvstendig webgrensesnitt uten CDN-avhengigheter:** Ingen ekstern JS-kompilering ved oppstart, full tastatur- og skjermleserstøtte, avbryt-knapp (`AbortController`) og sikker nøkkelhåndtering via HTTP-headere.
 - **Språkvalg:** Grensesnitt, fremdrift og lokale språkråd følger valgt kildespråk (norsk, svensk, finsk, engelsk eller nordsamisk). Gemini-genererte råd og merknader fra eksterne tjenester kan foreløpig ha et annet språk.
 

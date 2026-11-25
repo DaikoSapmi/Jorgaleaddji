@@ -25,7 +25,6 @@ DIVVUN_SPELLER_URL = "https://api-giellalt.uit.no/speller/se"
 
 DEFAULT_GEMINI_MODEL = "gemini-4-hydrogen"
 GEMINI_REQUEST_TIMEOUT_MS = 600_000
-FAST_DIVVUN_PASS_MODEL = "gemini-4-hydrogen"
 PLACEHOLDER_KEY = "din_gemini_api_nokkel_her"
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -376,12 +375,6 @@ class RefinementSchema(BaseModel):
     )
     improvements: List[str] = Field(
         description="Liste med korte punkter på norsk som forklarer de viktigste språklige forbedringene."
-    )
-
-
-class DivvunFixSchema(BaseModel):
-    corrected_text: str = Field(
-        description="Den korrigerte nordsamiske teksten der reelle Divvun-merknader er rettet."
     )
 
 
@@ -1094,99 +1087,6 @@ def _classify_gemini_exception(exc: Exception) -> Tuple[Optional[int], bool]:
     return None, False
 
 
-async def call_gemini_final_divvun_pass(
-    source_text: str,
-    gemini_draft: str,
-    divvun_errs: list,
-    override_key: Optional[str] = None,
-    override_model: Optional[str] = None,
-    source_lang: str = "nor",
-    glossary: Optional[str] = None,
-) -> Optional[str]:
-    """Trinn 4: Lar en rask Gemini 4-modell rette konkrete Divvun-merknader intelligent uten å ødelegge syntaks eller egennavn."""
-    active_key = (override_key or GEMINI_API_KEY).strip()
-    if not active_key or active_key == PLACEHOLDER_KEY or not divvun_errs:
-        return None
-
-    compact_errs = [
-        {
-            "error_text": e.get("error_text"),
-            "title": e.get("title"),
-            "description": e.get("description"),
-            "suggestions": (e.get("suggestions") or [])[:5],
-        }
-        for e in divvun_errs[:35]
-    ]
-
-    lang_cfg = SOURCE_LANGUAGES.get(source_lang, SOURCE_LANGUAGES["nor"])
-    source_heading = str(lang_cfg["source_heading"])
-
-    prompt = f"""Her er den nordsamiske teksten du bearbeider, sammen med merknader fra UiT Divvun grammatikk- og stavekontroll.
-
-{source_heading}:
-{source_text}
-
-DIN NORDSAMISKE TEKST:
-{gemini_draft}
-
-MERKNADER FRA DIVVUN SOM SKAL VURDERES OG FIKSES:
-{json.dumps(compact_errs, ensure_ascii=False)}
-
-Oppgave:
-Rett opp alle reelle stave-, bøyings-, stadievekslings-, kasus- og tegnsettingsfeil som Divvun har påpekt, uten å ødelegge personnavn, fagtermer eller den gode samiske setningsoppbyggingen og avsnittsstrukturen.
-Returner svaret som JSON med nøkkelen "corrected_text"."""
-
-    normalized_override, _ = normalize_gemini_model(override_model)
-    candidates = list(
-        dict.fromkeys([FAST_DIVVUN_PASS_MODEL, normalized_override, "gemini-3.5-flash-lite"])
-    )
-    system_instruction = build_system_instruction(source_lang=source_lang, glossary=glossary)
-
-    try:
-        client = genai.Client(
-            api_key=active_key,
-            http_options={"timeout": GEMINI_REQUEST_TIMEOUT_MS},
-        )
-        for cand in candidates:
-            try:
-                interaction = await client.aio.interactions.create(
-                    model=cand,
-                    system_instruction=system_instruction,
-                    input=prompt,
-                    response_format={
-                        "type": "text",
-                        "mime_type": "application/json",
-                        "schema": DivvunFixSchema.model_json_schema(),
-                    },
-                    generation_config={
-                        "thinking_level": "low",
-                        "max_output_tokens": 32768,
-                    },
-                )
-                raw_json = extract_interaction_text(interaction)
-                if not raw_json:
-                    continue
-                try:
-                    parsed_obj = DivvunFixSchema.model_validate_json(raw_json)
-                    if parsed_obj.corrected_text.strip():
-                        return parsed_obj.corrected_text
-                except Exception:
-                    fallback_dict = extract_gemini_json(raw_json)
-                    corrected = fallback_dict.get("corrected_text")
-                    if isinstance(corrected, str) and corrected.strip():
-                        return corrected
-            except Exception as exc:
-                logger.warning(
-                    "Divvun-sluttpass med %s feilet: %s",
-                    cand,
-                    sanitize_error_message(str(exc), active_key),
-                )
-                continue
-    except Exception as exc:
-        logger.warning("Kunne ikke opprette Gemini-klient i sluttpass: %s", sanitize_error_message(str(exc), active_key))
-    return None
-
-
 def _build_refiner_user_prompt(
     source_text: str,
     tartu_draft: Optional[str],
@@ -1576,43 +1476,8 @@ async def run_translation_pipeline_events(
     final_divvun = await call_divvun_grammar(final_text) if final_text.strip() else {"errs": []}
     final_errs = final_divvun.get("errs", [])
 
-    if req.auto_apply_divvun and final_errs and final_text.strip():
-        initial_err_count = len(final_errs)
-        if llm_succeeded:
-            yield progress_event(
-                src_lang, 4, 94, "step4_fix", "step4_fix_detail", count=initial_err_count,
-            )
-            refined_by_divvun = await call_gemini_final_divvun_pass(
-                source_text=req.text,
-                gemini_draft=final_text,
-                divvun_errs=final_errs,
-                override_key=effective_key,
-                override_model=req.model,
-                source_lang=src_lang,
-                glossary=req.glossary,
-            )
-            if refined_by_divvun and refined_by_divvun.strip() and refined_by_divvun != final_text:
-                final_text = refined_by_divvun
-                final_divvun = await call_divvun_grammar(final_text)
-                final_errs = final_divvun.get("errs", [])
-
-        if final_errs:
-            smart_corrected = apply_divvun_suggestions(
-                final_text,
-                final_errs,
-                protect_proper_nouns=True,
-                source_text="" if is_sami_source else req.text,
-            )
-            # Kall kun Divvun på nytt dersom teksten faktisk ble endret!
-            if smart_corrected != final_text:
-                final_text = smart_corrected
-                final_divvun = await call_divvun_grammar(final_text)
-                final_errs = final_divvun.get("errs", [])
-
-        fixed_count = max(0, initial_err_count - len(final_errs))
-        if fixed_count > 0:
-            add_local_improvement(llm_result, src_lang, "fixed_count", fixed=fixed_count, total=initial_err_count)
-
+    # Sluttkontrollen skal bare vise feil og foreslå rettinger; teksten endres ikke her.
+    # Divvun-forslag etter Gemini må være et eksplisitt valg fra brukeren.
     # Siste ord-for-ord rettskrivingstest via Divvun Speller (/speller/se)
     speller_errs = await call_divvun_speller(final_text) if final_text.strip() else []
     localize_speller_errors(speller_errs, src_lang)
