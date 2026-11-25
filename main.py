@@ -4,7 +4,7 @@ import logging
 import os
 import re
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Dict, List, Literal, Optional, Tuple
+from typing import Annotated, AsyncGenerator, Dict, List, Literal, Optional, Tuple
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException
@@ -23,7 +23,8 @@ TARTU_API_URL = "https://api.tartunlp.ai/translation/v2"
 DIVVUN_GRAMMAR_URL = "https://api-giellalt.uit.no/grammar/se"
 DIVVUN_SPELLER_URL = "https://api-giellalt.uit.no/speller/se"
 
-DEFAULT_GEMINI_MODEL = "gemini-4-argon"
+DEFAULT_GEMINI_MODEL = "gemini-4-hydrogen"
+GEMINI_REQUEST_TIMEOUT_MS = 600_000
 FAST_DIVVUN_PASS_MODEL = "gemini-4-hydrogen"
 PLACEHOLDER_KEY = "din_gemini_api_nokkel_her"
 
@@ -47,16 +48,16 @@ NON_TEXT_MODEL_KEYWORDS = (
 
 DEFAULT_MODEL_CHOICES: List[Dict[str, str]] = [
     {
+        "id": "gemini-4-hydrogen",
+        "display_name": "Gemini 4 Hydrogen (Rask & støtter gratisnivå)",
+    },
+    {
         "id": "gemini-4-argon",
         "display_name": "Gemini 4 Argon (Anbefalt – presis & effektiv)",
     },
     {
         "id": "gemini-4-carbon",
         "display_name": "Gemini 4 Carbon (Maksimal resonneringsdybde)",
-    },
-    {
-        "id": "gemini-4-hydrogen",
-        "display_name": "Gemini 4 Hydrogen (Rask & støtter gratisnivå)",
     },
     {
         "id": "gemini-3.5-flash-lite",
@@ -511,7 +512,10 @@ async def fetch_available_gemini_models(api_key: str) -> List[Dict[str, str]]:
         return []
 
     try:
-        client = genai.Client(api_key=active_key, http_options={"timeout": 15_000})
+        client = genai.Client(
+            api_key=active_key,
+            http_options={"timeout": GEMINI_REQUEST_TIMEOUT_MS},
+        )
         discovered: Dict[str, str] = {}
         pager = await client.aio.models.list()
         async for m in pager:
@@ -1068,7 +1072,10 @@ Returner svaret som JSON med nøkkelen "corrected_text"."""
     system_instruction = build_system_instruction(source_lang=source_lang, glossary=glossary)
 
     try:
-        client = genai.Client(api_key=active_key, http_options={"timeout": 60_000})
+        client = genai.Client(
+            api_key=active_key,
+            http_options={"timeout": GEMINI_REQUEST_TIMEOUT_MS},
+        )
         for cand in candidates:
             try:
                 interaction = await client.aio.interactions.create(
@@ -1239,7 +1246,10 @@ async def call_gemini_refiner(
 
     last_error_msg = ""
     try:
-        client = genai.Client(api_key=active_key, http_options={"timeout": 180_000})
+        client = genai.Client(
+            api_key=active_key,
+            http_options={"timeout": GEMINI_REQUEST_TIMEOUT_MS},
+        )
     except Exception as exc:
         safe_err = sanitize_error_message(str(exc), active_key)
         return {
@@ -1611,7 +1621,9 @@ async def run_translation_pipeline_events(
 @app.post("/api/translate")
 async def translate_pipeline(
     req: TranslateRequest,
-    x_gemini_api_key: Optional[str] = Header(default=None, alias="X-Gemini-Api-Key"),
+    x_gemini_api_key: Annotated[
+        Optional[str], Header(alias="X-Gemini-Api-Key")
+    ] = None,
 ):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Teksten er tom.")
@@ -1629,7 +1641,9 @@ async def translate_pipeline(
 @app.post("/api/translate-stream")
 async def translate_pipeline_stream(
     req: TranslateRequest,
-    x_gemini_api_key: Optional[str] = Header(default=None, alias="X-Gemini-Api-Key"),
+    x_gemini_api_key: Annotated[
+        Optional[str], Header(alias="X-Gemini-Api-Key")
+    ] = None,
 ):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Teksten er tom.")

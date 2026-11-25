@@ -448,8 +448,8 @@ function populateModelOptions(models, preferredId) {
   const ids = models.map((m) => m.id);
   if (preferredId && ids.includes(preferredId)) {
     modelSelect.value = preferredId;
-  } else if (ids.includes('gemini-4-argon')) {
-    modelSelect.value = 'gemini-4-argon';
+  } else if (ids.includes('gemini-4-hydrogen')) {
+    modelSelect.value = 'gemini-4-hydrogen';
   }
   headerModelLabel.textContent = modelSelect.value;
   headerModelBadge.classList.add('is-ready');
@@ -478,7 +478,7 @@ async function loadAvailableModels() {
         : cfg.default_models || [];
 
     if (models.length > 0) {
-      populateModelOptions(models, savedModel || cfg.env_model || 'gemini-4-argon');
+      populateModelOptions(models, savedModel || cfg.env_model || 'gemini-4-hydrogen');
       statusText.textContent = `Klar (${modelSelect.value})`;
     }
   } catch (err) {

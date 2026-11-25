@@ -10,7 +10,7 @@ Et helhetlig oversettelses-, språkvask- og korrekturverktøy for nordsamisk (*d
 5. **Davvisámegiella → Davvisámegiella (Direkte språkvask & korrektur):** Skånsom, normtro språkvask av nordsamisk tekst som retter ortografi, stadieveksling, rekšuvdna, tegnsetting og substantivsyke uten å viske ut forfatterens stemme.
 
 ## Nytt i Gemini 4 Edition
-- **Google GenAI SDK (`google-genai >= 3.2.0`) & Interactions API:** Støtter `gemini-4-argon` (standard), `gemini-4-carbon`, `gemini-4-hydrogen` (også på gratisnivå) og `gemini-3.5-flash-lite`, med valgbar tenkedybde (`low`, `medium`, `high`).
+- **Google GenAI SDK (`google-genai >= 3.2.0`) & Interactions API:** Støtter `gemini-4-hydrogen` (standard), `gemini-4-argon`, `gemini-4-carbon` og `gemini-3.5-flash-lite`, med valgbar tenkedybde (`low`, `medium`, `high`). Gemini-forespørsler har en timeout på 10 minutter.
 - **Egen ordliste / terminologi & hurtigoppslag i Sátni.org:** Legg inn faste fagtermer (`kildeord = samisk term`) og slå opp markerte ord direkte i Giellagáldus termbase på [Sátni.org](https://satni.org).
 - **Endringsvisning (Diff) & samisk spesialtegn-rad:** Se nøyaktig hvilke ord som ble endret i språkvasken, og sett raskt inn `Á á Č č Đ đ Ŋ ŋ Š š Ŧ ŧ Ž ž ” –`.
 - **Raskt, selvstendig webgrensesnitt uten CDN-avhengigheter:** Ingen ekstern JS-kompilering ved oppstart, full tastatur- og skjermleserstøtte, avbryt-knapp (`AbortController`) og sikker nøkkelhåndtering via HTTP-headere.

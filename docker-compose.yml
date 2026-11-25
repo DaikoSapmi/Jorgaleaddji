@@ -6,7 +6,7 @@ services:
       - "8090:8090"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-4-argon}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-4-hydrogen}
     env_file:
       - path: .env
         required: false

@@ -127,6 +127,8 @@ class TestJorgaleaddjiCore(unittest.TestCase):
         self.assertIn("[SKJULT", cleaned)
 
     def test_deprecated_model_substitution(self):
+        self.assertEqual(main.DEFAULT_GEMINI_MODEL, "gemini-4-hydrogen")
+
         model, note = main.normalize_gemini_model("gemini-2.5-flash")
         self.assertEqual(model, "gemini-4-hydrogen")
         self.assertIsNotNone(note)
@@ -235,7 +237,7 @@ class TestAsyncPipeline(unittest.IsolatedAsyncioTestCase):
         fake_client = MagicMock()
         fake_client.aio.interactions.create = create_mock
 
-        with patch("main.genai.Client", return_value=fake_client):
+        with patch("main.genai.Client", return_value=fake_client) as client_constructor:
             res = await main.call_gemini_refiner(
                 source_text="Saken ble behandlet av kommunestyret.",
                 tartu_draft="Ášši meannuduvvui suohkanstivrras.",
@@ -249,6 +251,11 @@ class TestAsyncPipeline(unittest.IsolatedAsyncioTestCase):
                 glossary="kommunestyret = suohkanstivra",
             )
 
+        client_constructor.assert_called_once_with(
+            api_key="test_valid_key_12345",
+            http_options={"timeout": main.GEMINI_REQUEST_TIMEOUT_MS},
+        )
+        self.assertEqual(main.GEMINI_REQUEST_TIMEOUT_MS, 600_000)
         self.assertTrue(res["llm_active"])
         self.assertEqual(res["used_model"], "gemini-4-hydrogen")
         self.assertEqual(res["final_translation"], "Suohkanstivra meannudii ášši.")
