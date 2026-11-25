@@ -1081,11 +1081,60 @@ progress.loading-spinner:indeterminate {
 
 .tabpanels-stack > [role="tabpanel"] {
   grid-area: 1 / 1;
+  min-inline-size: 0;
+  min-block-size: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.tabpanels-stack > [role="tabpanel"][hidden] {
+  pointer-events: none;
+  visibility: hidden;
+  z-index: 0;
 }
 
 .tabpanel-inner {
   padding: 1rem;
   font-size: 0.78rem;
+  min-inline-size: 0;
+}
+
+.scroll-box,
+.raw-pre,
+.diff-box {
+  --scrollbar-thumb: #94a3b8;
+  --scrollbar-track: #f1f5f9;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  overscroll-behavior-y: contain;
+}
+
+@supports not (scrollbar-color: auto) {
+  .scroll-box,
+  .raw-pre,
+  .diff-box {
+    scrollbar-width: auto;
+  }
+
+  .scroll-box::-webkit-scrollbar,
+  .raw-pre::-webkit-scrollbar,
+  .diff-box::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scroll-box::-webkit-scrollbar-thumb,
+  .raw-pre::-webkit-scrollbar-thumb,
+  .diff-box::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 999px;
+  }
+
+  .scroll-box::-webkit-scrollbar-track,
+  .raw-pre::-webkit-scrollbar-track,
+  .diff-box::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
 }
 
 .scroll-box {
@@ -1098,6 +1147,7 @@ progress.loading-spinner:indeterminate {
 
 /* Insight Items */
 .note-card {
+  flex-shrink: 0;
   padding: 0.65rem 0.8rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
