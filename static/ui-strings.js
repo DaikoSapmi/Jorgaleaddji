@@ -1,5 +1,6 @@
 export const UI_STRINGS = {
   "nor": {
+    "reloadPage": "Last siden på nytt",
     "settings": "Innstillinger",
     "settingsTitle": "Åpne innstillinger for modell, API-nøkkel og ordliste",
     "model": "Gemini-modell",
@@ -107,6 +108,7 @@ export const UI_STRINGS = {
     "guide6": "Bruk liten forbokstav på stillinger (direktevra, stáhtaministtar), språk, nasjonaliteter og epoker. Fremmedord på -iija har ikke stadieveksling. Stedsnavn ender ikke på -iija (Tansania)."
   },
   "swe": {
+    "reloadPage": "Ladda om sidan",
     "settings": "Inställningar",
     "settingsTitle": "Öppna inställningar för modell, API-nyckel och ordlista",
     "model": "Gemini-modell",
@@ -214,6 +216,7 @@ export const UI_STRINGS = {
     "guide6": "Använd liten begynnelsebokstav för yrken (direktevra, stáhtaministtar), språk, nationaliteter och epoker. Främmande ord på -iija har ingen stadieväxling. Ortnamn slutar inte på -iija (Tansania)."
   },
   "fin": {
+    "reloadPage": "Lataa sivu uudelleen",
     "settings": "Asetukset",
     "settingsTitle": "Avaa mallin, API-avaimen ja sanaston asetukset",
     "model": "Gemini-malli",
@@ -321,6 +324,7 @@ export const UI_STRINGS = {
     "guide6": "Kirjoita tehtävänimikkeet (direktevra, stáhtaministtar), kielet, kansallisuudet ja aikakaudet pienellä alkukirjaimella. -iija-loppuisissa lainasanoissa ei ole astevaihtelua. Paikannimet eivät pääty -iija (Tansania)."
   },
   "eng": {
+    "reloadPage": "Reload the page",
     "settings": "Settings",
     "settingsTitle": "Open model, API key and glossary settings",
     "model": "Gemini model",
@@ -428,6 +432,7 @@ export const UI_STRINGS = {
     "guide6": "Use lowercase for job titles (direktevra, stáhtaministtar), languages, nationalities and eras. Loanwords ending in -iija do not undergo consonant gradation. Place names do not end in -iija (Tansania)."
   },
   "sme": {
+    "reloadPage": "Viečča siiddu ođđasit",
     "settings": "Heivehusat",
     "settingsTitle": "Raba modealla, API-čoavdaga ja sátnerádju heivehusaid",
     "model": "Gemini-modealla",

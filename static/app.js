@@ -170,6 +170,7 @@ function translateStaticUI() {
     document.querySelector(selector).textContent = tr(key);
   }
   const attributes = [
+    ['#homeLink', 'title', 'reloadPage'],
     ['#toggleSettingsBtn', 'title', 'settingsTitle'],
     ['#geminiKeyInput', 'placeholder', keyInput.dataset.envKey === 'true' ? 'keyEnv' : 'keyPlaceholder'],
     ['#progressSpinner', 'aria-label', 'working'],
