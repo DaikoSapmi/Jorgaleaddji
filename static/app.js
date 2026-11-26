@@ -1,6 +1,6 @@
 // Jorgaleaddji & Divvun Studio – Client Application
 
-import { UI_STRINGS } from './ui-strings.js';
+import { UI_STRINGS } from './ui-strings.js?v=3';
 
 const STORAGE_KEYS = {
   apiKey: 'sami_gemini_key',
@@ -165,6 +165,13 @@ function translateStaticUI() {
     '#tabBtnDivvun span:first-child': 'divvunTab',
     '#tabBtnDiff span:first-child': 'diffTab',
     '.guidelines-details summary span': 'guidelines',
+    '#creditsToggle': 'credits',
+    '#creditTartu': 'creditTartu',
+    '#creditDivvun': 'creditDivvun',
+    '#creditGemini': 'creditGemini',
+    '#creditSatni': 'creditSatni',
+    '#creditLanguage': 'creditLanguage',
+    '#creditsPrivacy': 'creditsPrivacy',
   };
   for (const [selector, key] of Object.entries(texts)) {
     document.querySelector(selector).textContent = tr(key);
@@ -1331,6 +1338,13 @@ function initApp() {
 
   const savedLang = localStorage.getItem(STORAGE_KEYS.lang) || 'nor';
   setSourceLang(savedLang, false);
+
+  document.getElementById('creditsToggle').addEventListener('click', (event) => {
+    const button = event.currentTarget;
+    const panel = document.getElementById('creditsPanel');
+    panel.hidden = !panel.hidden;
+    button.setAttribute('aria-expanded', String(!panel.hidden));
+  });
 
   keyInput.addEventListener('change', () => {
     localStorage.setItem(STORAGE_KEYS.apiKey, keyInput.value.trim());

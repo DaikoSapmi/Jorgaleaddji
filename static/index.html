@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Jorgaleaddji – Norsk → Davvisámegillii</title>
-  <link rel="stylesheet" href="/static/styles.css?v=2" />
+  <link rel="stylesheet" href="/static/styles.css?v=3" />
 </head>
 
 <body>
@@ -370,12 +370,25 @@
   </main>
 
   <footer class="site-footer">
-    <a href="https://github.com/DaikoSapmi/Jorgaleaddji">Jorgaleaddji github vuorka</a>
+    <div class="footer-links">
+      <a href="https://github.com/DaikoSapmi/Jorgaleaddji">Jorgaleaddji github vuorka</a>
+      <button type="button" id="creditsToggle" aria-expanded="false" aria-controls="creditsPanel">Tjenester og kreditering</button>
+    </div>
+    <section id="creditsPanel" class="credits-panel" aria-labelledby="creditsToggle" hidden>
+      <ul>
+        <li><a href="https://tartunlp.ai/">TartuNLP / Universitetet i Tartu</a> – <span id="creditTartu">maskinoversettelse.</span></li>
+        <li><a href="https://divvun.no/">Divvun / UiT</a> – <span id="creditDivvun">grammatikk- og stavekontroll.</span></li>
+        <li><a href="https://ai.google.dev/gemini-api/docs">Google Gemini</a> – <span id="creditGemini">oversettelse og språkvask.</span></li>
+        <li><a href="https://satni.org/">Sátni.org</a> – <span id="creditSatni">ord- og termoppslag.</span></li>
+        <li><a href="https://samediggi.no/">Sámediggi</a> / Sámi Giellagáldu / <a href="https://www.nrk.no/sapmi/">NRK Sápmi</a> – <span id="creditLanguage">språkfaglig normgrunnlag.</span></li>
+      </ul>
+      <p id="creditsPrivacy">Tekst kan sendes til TartuNLP ved oversettelse, til Divvun for kontroll og til Google når Gemini er aktivert. Sátni.org åpnes ved oppslag.</p>
+    </section>
   </footer>
 
   <div id="spellPopover" popover="auto" class="spell-popover"></div>
 
-  <script type="module" src="/static/app.js"></script>
+  <script type="module" src="/static/app.js?v=3"></script>
 </body>
 
 </html>

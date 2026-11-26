@@ -411,14 +411,61 @@ a:focus-visible {
   font-size: 0.8rem;
 }
 
-.site-footer a {
+.footer-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.site-footer a,
+.footer-links button {
   color: var(--text-soft);
   text-decoration: none;
 }
 
-.site-footer a:hover {
+.footer-links button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.site-footer a:hover,
+.footer-links button:hover {
   color: var(--text-muted);
   text-decoration: underline;
+}
+
+.credits-panel {
+  max-inline-size: 40rem;
+  margin: 0.85rem auto 0;
+  padding: 1rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-muted);
+  text-align: start;
+}
+
+.credits-panel ul {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+}
+
+.credits-panel li + li {
+  margin-block-start: 0.35rem;
+}
+
+.credits-panel a {
+  color: var(--accent);
+}
+
+.credits-panel p {
+  margin: 0.75rem 0 0;
 }
 
 @media (min-width: 640px) {
