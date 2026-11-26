@@ -25,6 +25,7 @@ DIVVUN_SPELLER_URL = "https://api-giellalt.uit.no/speller/se"
 
 DEFAULT_GEMINI_MODEL = "gemini-4-hydrogen"
 GEMINI_REQUEST_TIMEOUT_MS = 600_000
+PIPELINE_CHUNK_SIZE = 3500
 PLACEHOLDER_KEY = "din_gemini_api_nokkel_her"
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -671,18 +672,19 @@ async def call_tartu_mt(text: str, src: str = "nor", tgt: str = "sme") -> Option
             await asyncio.gather(*(translate_idx(i) for i in non_empty_indices[1:]))
 
         succeeded = sum(1 for v in results_by_index.values() if v is not None)
-        if succeeded == 0:
+        if succeeded != len(non_empty_indices):
+            logger.warning(
+                "TartuNLP oversatte %s av %s avsnitt; bruker Gemini direkte.",
+                succeeded, len(non_empty_indices),
+            )
             return None
 
         assembled: List[str] = []
         for idx, orig_p in enumerate(paragraphs):
             if not orig_p.strip():
                 assembled.append("")
-            elif results_by_index.get(idx) is not None:
-                assembled.append(results_by_index[idx] or "")
             else:
-                # Hvis et enkeltavsnitt feilet i en ellers vellykket lang tekst, behold kilden tydelig merket for Gemini
-                assembled.append(orig_p)
+                assembled.append(results_by_index[idx] or "")
         return "\n".join(assembled)
 
 
@@ -701,9 +703,10 @@ async def call_divvun_grammar(text: str) -> dict:
             if resp.status_code == 200:
                 return resp.json()
             logger.warning("Divvun API svarte med HTTP %s", resp.status_code)
+            return {"text": text, "errs": [], "api_error": f"HTTP {resp.status_code}"}
         except Exception as exc:
             logger.warning("Divvun API nettverksfeil: %s", exc)
-            return {"text": text, "errs": [], "api_error": str(exc)}
+            return {"text": text, "errs": [], "api_error": str(exc) or type(exc).__name__}
     return {"text": text, "errs": []}
 
 
@@ -720,6 +723,10 @@ def localize_speller_errors(errors: List[dict], lang: str) -> None:
         error["translations"] = translations
 
 
+class DivvunSpellerError(Exception):
+    pass
+
+
 async def call_divvun_speller(text: str) -> List[dict]:
     """Kaller Divvun GiellaLT Speller API (/speller/se) for siste ord-for-ord rettskrivingstest."""
     if not text or not text.strip():
@@ -734,11 +741,11 @@ async def call_divvun_speller(text: str) -> List[dict]:
             )
             if resp.status_code != 200:
                 logger.warning("Divvun Speller API svarte med HTTP %s", resp.status_code)
-                return []
+                raise DivvunSpellerError(f"HTTP {resp.status_code}")
             data = resp.json()
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError) as exc:
             logger.warning("Divvun Speller API nettverksfeil: %s", exc)
-            return []
+            raise DivvunSpellerError(str(exc) or type(exc).__name__) from exc
 
     results = data.get("results") or []
     speller_errs: List[dict] = []
@@ -1216,7 +1223,7 @@ async def call_gemini_refiner(
             http_options={"timeout": GEMINI_REQUEST_TIMEOUT_MS},
         )
     except Exception as exc:
-        safe_err = sanitize_error_message(str(exc), active_key)
+        safe_err = sanitize_error_message(str(exc) or type(exc).__name__, active_key)
         result = {
             "final_translation": fallback_text,
             "improvements": [],
@@ -1293,6 +1300,16 @@ async def call_gemini_refiner(
                             }
                         )
 
+                if getattr(interaction, "status", None) == "incomplete":
+                    result = {
+                        "final_translation": fallback_text,
+                        "improvements": [],
+                        "llm_active": False,
+                        "used_model": candidate_model,
+                    }
+                    add_local_improvement(result, source_lang, "incomplete", first=True)
+                    return result
+
                 raw_json = extract_interaction_text(interaction) if interaction is not None else ""
                 final_trans = ""
                 improvements: List[str] = []
@@ -1316,8 +1333,6 @@ async def call_gemini_refiner(
                     }
                     if consulted_refs:
                         add_local_improvement(result, source_lang, "references_used", references=", ".join(consulted_refs))
-                    if getattr(interaction, "status", None) == "incomplete":
-                        add_local_improvement(result, source_lang, "incomplete", first=True)
                     if candidate_model != requested_model:
                         add_local_improvement(
                             result, source_lang, "fallback_model", first=True,
@@ -1334,7 +1349,7 @@ async def call_gemini_refiner(
                 break
             except Exception as exc:
                 status_code, should_fallback = _classify_gemini_exception(exc)
-                safe_err = sanitize_error_message(str(exc), active_key)
+                safe_err = sanitize_error_message(str(exc) or type(exc).__name__, active_key)
                 last_error_msg = f"{candidate_model}: {safe_err}"
                 logger.warning("Gemini API feil (%s): %s", status_code, last_error_msg)
 
@@ -1373,7 +1388,7 @@ async def call_gemini_refiner(
     return result
 
 
-async def run_translation_pipeline_events(
+async def _run_single_pipeline_events(
     req: TranslateRequest,
     header_api_key: Optional[str] = None,
 ) -> AsyncGenerator[dict, None]:
@@ -1468,6 +1483,8 @@ async def run_translation_pipeline_events(
 
     gemini_text = llm_result.get("final_translation") or ""
     llm_succeeded = bool(llm_result.get("llm_active", False))
+    if not is_sami_source and tartu_raw is None:
+        add_local_improvement(llm_result, src_lang, "no_tartu")
 
     # Trinn 4: Sluttkontroll med Divvun
     yield progress_event(src_lang, 4, 88, "step4", "step4_detail")
@@ -1479,9 +1496,20 @@ async def run_translation_pipeline_events(
     # Sluttkontrollen skal bare vise feil og foreslå rettinger; teksten endres ikke her.
     # Divvun-forslag etter Gemini må være et eksplisitt valg fra brukeren.
     # Siste ord-for-ord rettskrivingstest via Divvun Speller (/speller/se)
-    speller_errs = await call_divvun_speller(final_text) if final_text.strip() else []
+    try:
+        speller_errs = await call_divvun_speller(final_text) if final_text.strip() else []
+        speller_error = None
+    except DivvunSpellerError as exc:
+        speller_errs = []
+        speller_error = str(exc)
     localize_speller_errors(speller_errs, src_lang)
     merged_final_errs = merge_divvun_errors(final_errs, speller_errs)
+    if tartu_raw is not None and divvun_initial.get("api_error"):
+        add_local_improvement(llm_result, src_lang, "divvun_initial_error", error=divvun_initial["api_error"])
+    if final_divvun.get("api_error"):
+        add_local_improvement(llm_result, src_lang, "divvun_grammar_error", error=final_divvun["api_error"])
+    if speller_error:
+        add_local_improvement(llm_result, src_lang, "divvun_speller_error", error=speller_error)
 
     final_local_tips = (
         local_heuristic_checks("" if is_sami_source else req.text, final_text, src_lang)
@@ -1510,8 +1538,13 @@ async def run_translation_pipeline_events(
         "step3_improvements": llm_result.get("improvements", []),
         "improvement_translations": llm_result.get("improvement_translations", {}),
         "llm_active": llm_succeeded,
+        "result_incomplete": (req.use_llm and not llm_succeeded) or not final_text.strip(),
         "used_model": llm_result.get("used_model"),
         "final_divvun_errors": merged_final_errs,
+        "divvun_check_incomplete": bool(
+            (tartu_raw is not None and divvun_initial.get("api_error"))
+            or final_divvun.get("api_error") or speller_error
+        ),
         "language_tips": combined_tips,
     }
 
@@ -1520,6 +1553,117 @@ async def run_translation_pipeline_events(
         "percent": 100,
         "data": result_payload,
     }
+
+
+def split_pipeline_text(text: str, limit: int = PIPELINE_CHUNK_SIZE) -> List[Tuple[str, str]]:
+    """Del på linjeskift eller mellomrom og behold skilletegnene nøyaktig."""
+    parts: List[Tuple[str, str]] = []
+    remaining = text
+    while len(remaining) > limit:
+        cut = remaining.rfind("\n", 0, limit + 1)
+        if cut <= 0:
+            cut = remaining.rfind(" ", 0, limit + 1)
+        if cut <= 0:
+            cut = limit
+        while cut > 0 and remaining[cut - 1].isspace():
+            cut -= 1
+        if cut == 0:
+            cut = limit
+        match = re.match(r"\s+", remaining[cut:])
+        separator = match.group(0) if match else ""
+        parts.append((remaining[:cut], separator))
+        remaining = remaining[cut + len(separator):]
+    if remaining:
+        parts.append((remaining, ""))
+    return parts
+
+
+async def run_translation_pipeline_events(
+    req: TranslateRequest,
+    header_api_key: Optional[str] = None,
+) -> AsyncGenerator[dict, None]:
+    parts = split_pipeline_text(req.text)
+    if len(parts) <= 1:
+        async for event in _run_single_pipeline_events(req, header_api_key):
+            yield event
+        return
+
+    results: List[dict] = []
+    for index, (text, _) in enumerate(parts):
+        async for event in _run_single_pipeline_events(req.model_copy(update={"text": text}), header_api_key):
+            if event["type"] == "progress":
+                for lang, translation in event["translations"].items():
+                    translation["detail"] = (
+                        ui_message(lang, "chunk_progress", current=index + 1, total=len(parts))
+                        + " " + translation["detail"]
+                    )
+                event.update(event["translations"][req.source_lang])
+                event["percent"] = min(99, round((index + event["percent"] / 100) * 100 / len(parts)))
+                yield event
+            elif event["type"] == "result":
+                results.append(event["data"])
+
+    first = results[0]
+    merged = dict(first)
+    merged["source_text"] = req.text
+    merged["step1_had_tartu"] = all(result["step1_had_tartu"] for result in results)
+    merged["step1_raw_translations"] = {}
+    merged["step3_improvements"] = []
+    merged["improvement_translations"] = {}
+    merged["step2_divvun_initial_errors"] = []
+    merged["final_divvun_errors"] = []
+    merged["language_tips"] = []
+    merged["result_incomplete"] = any(result["result_incomplete"] for result in results)
+    merged["divvun_check_incomplete"] = any(result["divvun_check_incomplete"] for result in results)
+    merged["llm_active"] = all(result["llm_active"] for result in results)
+    models = list(dict.fromkeys(result["used_model"] for result in results if result["used_model"]))
+    merged["used_model"] = ", ".join(models) if models else None
+    final_chunks: List[str] = []
+    raw_chunks: List[str] = []
+    corrected_chunks: List[str] = []
+    final_offset = 0
+    raw_offset = 0
+
+    for index, ((_, separator), result) in enumerate(zip(parts, results)):
+        final_text = result["step3_final_text"]
+        if not final_text:
+            final_text = ui_message(req.source_lang, "chunk_missing", current=index + 1)
+            merged["result_incomplete"] = True
+        if result["result_incomplete"]:
+            notice: dict = {}
+            add_local_improvement(notice, req.source_lang, "chunk_failed", current=index + 1, total=len(parts))
+            merged["step3_improvements"].extend(notice["improvements"])
+            merged["improvement_translations"].update(notice["improvement_translations"])
+        final_chunks.append(final_text + separator)
+        raw_text = result["step1_tartu_raw"]
+        raw_chunks.append(raw_text + separator)
+        corrected_chunks.append(result["step2_divvun_corrected"] + separator)
+        for error in result["final_divvun_errors"]:
+            adjusted = dict(error)
+            if isinstance(adjusted.get("start_index"), int):
+                adjusted["start_index"] += final_offset
+            if isinstance(adjusted.get("end_index"), int):
+                adjusted["end_index"] += final_offset
+            merged["final_divvun_errors"].append(adjusted)
+        for error in result["step2_divvun_initial_errors"]:
+            adjusted = dict(error)
+            if isinstance(adjusted.get("start_index"), int):
+                adjusted["start_index"] += raw_offset
+            if isinstance(adjusted.get("end_index"), int):
+                adjusted["end_index"] += raw_offset
+            merged["step2_divvun_initial_errors"].append(adjusted)
+        final_offset += len(final_text) + len(separator)
+        raw_offset += len(raw_text) + len(separator)
+        merged["step3_improvements"].extend(result["step3_improvements"])
+        merged["improvement_translations"].update(result["improvement_translations"])
+        for tip in result["language_tips"]:
+            if tip not in merged["language_tips"]:
+                merged["language_tips"].append(tip)
+
+    merged["step1_tartu_raw"] = "".join(raw_chunks)
+    merged["step2_divvun_corrected"] = "".join(corrected_chunks)
+    merged["step3_final_text"] = "".join(final_chunks)
+    yield {"type": "result", "percent": 100, "data": merged}
 
 
 @app.post("/api/translate")
@@ -1562,7 +1706,7 @@ async def translate_pipeline_stream(
             logger.info("Klienten avbrøt oversettelsesstrømmen.")
             raise
         except Exception as exc:
-            safe_msg = sanitize_error_message(str(exc), effective_key)
+            safe_msg = sanitize_error_message(str(exc) or type(exc).__name__, effective_key)
             logger.error("Uventet feil i translate-stream: %s", safe_msg)
             yield json.dumps({"type": "error", "message": safe_msg}, ensure_ascii=False) + "\n"
 
@@ -1574,17 +1718,35 @@ async def proofread_only(req: ProofreadRequest):
     """Lar brukeren kjøre ren Divvun-korrektur + Speller (/speller/se) + språksjekk når de redigerer den samiske teksten manuelt."""
     if not req.text.strip():
         raise HTTPException(status_code=400, detail=ui_message(req.source_lang, "empty_text"))
-    divvun_res, speller_errs = await asyncio.gather(
-        call_divvun_grammar(req.text),
-        call_divvun_speller(req.text),
-    )
-    localize_speller_errors(speller_errs, req.source_lang)
-    merged_errs = merge_divvun_errors(divvun_res.get("errs", []), speller_errs)
+    merged_errs: List[dict] = []
+    warnings: dict = {}
+    offset = 0
+    for text, separator in split_pipeline_text(req.text):
+        divvun_res = await call_divvun_grammar(text)
+        try:
+            speller_errs = await call_divvun_speller(text)
+        except DivvunSpellerError as exc:
+            speller_errs = []
+            add_local_improvement(warnings, req.source_lang, "divvun_speller_error", error=str(exc))
+        if divvun_res.get("api_error"):
+            add_local_improvement(warnings, req.source_lang, "divvun_grammar_error", error=divvun_res["api_error"])
+        localize_speller_errors(speller_errs, req.source_lang)
+        for error in merge_divvun_errors(divvun_res.get("errs", []), speller_errs):
+            adjusted = dict(error)
+            if isinstance(adjusted.get("start_index"), int):
+                adjusted["start_index"] += offset
+            if isinstance(adjusted.get("end_index"), int):
+                adjusted["end_index"] += offset
+            merged_errs.append(adjusted)
+        offset += len(text) + len(separator)
     tips = local_heuristic_checks("", req.text, req.source_lang)
     return {
         "text": req.text,
         "errs": merged_errs,
         "language_tips": tips,
+        "warnings": warnings.get("improvements", []),
+        "improvement_translations": warnings.get("improvement_translations", {}),
+        "divvun_check_incomplete": bool(warnings),
     }
 
 

@@ -3,12 +3,30 @@ import os
 import re
 import types
 import unittest
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import main
 
 
 class TestJorgaleaddjiCore(unittest.TestCase):
+    def test_long_text_splitting_preserves_every_character(self):
+        samples = [
+            ("Oassi sámegillii.\n\n" * 800) + "Loahppa.",
+            "x" * 8000,
+            ("árbevierru " * 900).rstrip(),
+            " \n\n" + ("linnjá\n" * 800) + "\n",
+        ]
+        for sample in samples:
+            with self.subTest(length=len(sample)):
+                parts = main.split_pipeline_text(sample)
+                self.assertGreater(len(parts), 1)
+                self.assertEqual("".join(text + separator for text, separator in parts), sample)
+                self.assertTrue(all(0 < len(text) <= main.PIPELINE_CHUNK_SIZE for text, _ in parts))
+        paragraphs = main.split_pipeline_text(("avsnitt\n\n" * 1000) + "slutt")
+        self.assertTrue(all(separator == "\n\n" for _, separator in paragraphs[:-1]))
+
     def test_quotation_marks_heuristic_allows_valid_sami_quotes(self):
         valid_sami = "Oahpaheaddji dajai: ”Dál mii álgit!”"
         tips_valid = main.local_heuristic_checks("", valid_sami)
@@ -208,6 +226,142 @@ class TestJorgaleaddjiCore(unittest.TestCase):
 
 
 class TestAsyncPipeline(unittest.IsolatedAsyncioTestCase):
+    async def test_long_sami_pipeline_preserves_text_and_adjusts_error_offsets(self):
+        source = ("Álgo sámi teaksta.\n\n" * 2499) + "Loahppa."
+        self.assertGreater(len(source), 45000)
+        self.assertLessEqual(len(source), 50000)
+        req = main.TranslateRequest(text=source, source_lang="sme", use_llm=True)
+
+        async def fake_refiner(**kwargs):
+            return {
+                "final_translation": kwargs["source_text"],
+                "improvements": [],
+                "llm_active": True,
+                "used_model": "gemini-4-hydrogen",
+            }
+
+        async def fake_grammar(text):
+            return {"errs": [{"start_index": 0, "end_index": 4, "error_text": text[:4], "suggestions": []}]}
+
+        with (
+            patch("main.call_divvun_grammar", new=AsyncMock(side_effect=fake_grammar)),
+            patch("main.call_divvun_speller", new=AsyncMock(return_value=[])),
+            patch("main.call_gemini_refiner", new=AsyncMock(side_effect=fake_refiner)) as refiner,
+        ):
+            events = [event async for event in main.run_translation_pipeline_events(req)]
+
+        result = events[-1]["data"]
+        self.assertEqual(result["step3_final_text"], source)
+        self.assertFalse(result["result_incomplete"])
+        self.assertGreater(refiner.await_count, 1)
+        self.assertTrue(all(len(call.kwargs["source_text"]) <= main.PIPELINE_CHUNK_SIZE for call in refiner.await_args_list))
+        for error in result["final_divvun_errors"]:
+            self.assertEqual(source[error["start_index"]:error["end_index"]], error["error_text"])
+        progress = [event for event in events if event["type"] == "progress"]
+        self.assertTrue(any("part 2 of" in event["translations"]["eng"]["detail"].lower() for event in progress))
+
+    async def test_long_pipeline_flags_failed_segment_without_losing_source(self):
+        source = ("Sámi teaksta.\n\n" * 600) + "Loahppa."
+        req = main.TranslateRequest(text=source, source_lang="sme", use_llm=True)
+        calls = 0
+
+        async def fake_refiner(**kwargs):
+            nonlocal calls
+            calls += 1
+            return {
+                "final_translation": kwargs["source_text"],
+                "improvements": ["Gemini failed"] if calls == 2 else [],
+                "llm_active": calls != 2,
+                "used_model": "gemini-4-hydrogen",
+            }
+
+        with (
+            patch("main.call_divvun_grammar", new=AsyncMock(return_value={"errs": []})),
+            patch("main.call_divvun_speller", new=AsyncMock(return_value=[])),
+            patch("main.call_gemini_refiner", new=AsyncMock(side_effect=fake_refiner)),
+        ):
+            events = [event async for event in main.run_translation_pipeline_events(req)]
+        result = events[-1]["data"]
+        self.assertTrue(result["result_incomplete"])
+        self.assertEqual(result["step3_final_text"], source)
+        self.assertTrue(any("2" in message and "Gemini" in message for message in result["step3_improvements"]))
+
+    async def test_incomplete_gemini_response_is_not_reported_as_success(self):
+        fake_client = MagicMock()
+        fake_client.aio.interactions.create = AsyncMock(return_value=types.SimpleNamespace(
+            status="incomplete",
+            output_text='{"final_translation":"partial","improvements":[]}',
+            steps=[],
+        ))
+        with patch("main.genai.Client", return_value=fake_client):
+            result = await main.call_gemini_refiner(
+                source_text="original", tartu_draft="original", divvun_corrected="original",
+                divvun_errs=[], local_tips=[], override_key="test-key", source_lang="sme",
+            )
+        self.assertFalse(result["llm_active"])
+        self.assertEqual(result["final_translation"], "original")
+        self.assertTrue(any("incomplete" in translations["eng"] for translations in result["improvement_translations"].values()))
+
+    async def test_divvun_failures_are_reported_instead_of_clean_check(self):
+        req = main.TranslateRequest(text="Sámi teaksta", source_lang="sme", use_llm=False)
+        with (
+            patch("main.call_divvun_grammar", new=AsyncMock(return_value={"errs": [], "api_error": "HTTP 413"})),
+            patch("main.call_divvun_speller", new=AsyncMock(side_effect=main.DivvunSpellerError("HTTP 503"))),
+        ):
+            events = [event async for event in main.run_translation_pipeline_events(req)]
+        result = events[-1]["data"]
+        self.assertTrue(result["divvun_check_incomplete"])
+        self.assertEqual(result["step3_final_text"], req.text)
+        self.assertTrue(any("HTTP 413" in message for message in result["step3_improvements"]))
+        self.assertTrue(any("HTTP 503" in message for message in result["step3_improvements"]))
+
+    async def test_divvun_http_failures_keep_the_status_code(self):
+        async def handler(request):
+            return httpx.Response(413, request=request)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            @asynccontextmanager
+            async def borrow():
+                yield client
+
+            with patch("main.borrow_http_client", borrow):
+                grammar = await main.call_divvun_grammar("tekst")
+                with self.assertRaisesRegex(main.DivvunSpellerError, "HTTP 413"):
+                    await main.call_divvun_speller("tekst")
+        self.assertEqual(grammar["api_error"], "HTTP 413")
+
+    async def test_partial_tartu_failure_does_not_mix_source_into_translation(self):
+        @asynccontextmanager
+        async def borrow():
+            yield MagicMock()
+
+        with (
+            patch("main.borrow_http_client", borrow),
+            patch("main._tartu_translate_chunk", new=AsyncMock(side_effect=[
+                ("Oversatt avsnitt", False), (None, False),
+            ])),
+        ):
+            result = await main.call_tartu_mt("A" * 4000 + "\nSecond paragraph", src="nor")
+        self.assertIsNone(result)
+
+    async def test_long_manual_check_preserves_error_offsets_and_reports_failures(self):
+        text = ("sámi teaksta\n\n" * 700) + "loahppa"
+        request = main.ProofreadRequest(text=text, source_lang="eng")
+
+        async def grammar(chunk):
+            return {"errs": [{"start_index": 0, "end_index": 4, "error_text": chunk[:4]}]}
+
+        with (
+            patch("main.call_divvun_grammar", new=AsyncMock(side_effect=grammar)) as grammar_mock,
+            patch("main.call_divvun_speller", new=AsyncMock(side_effect=main.DivvunSpellerError("HTTP 413"))),
+        ):
+            result = await main.proofread_only(request)
+        self.assertGreater(grammar_mock.await_count, 1)
+        self.assertTrue(result["divvun_check_incomplete"])
+        self.assertIn("HTTP 413", result["warnings"][0])
+        for error in result["errs"]:
+            self.assertEqual(text[error["start_index"]:error["end_index"]], error["error_text"])
+
     async def test_proofread_uses_requested_language_and_accepts_alias(self):
         req = main.ProofreadRequest(text="25%", source_lang="en")
         with (

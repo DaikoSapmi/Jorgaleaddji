@@ -120,6 +120,7 @@ let lastTips = [];
 let lastImprovements = [];
 let lastImprovementTranslations = {};
 let lastErrors = [];
+let divvunCheckIncomplete = false;
 let lastResult = null;
 let lastProgress = null;
 let lastEndProgress = null;
@@ -689,8 +690,15 @@ function renderErrors(errs) {
   box.replaceChildren();
 
   badgeCount.classList.remove('is-emerald', 'is-amber');
+  if (divvunCheckIncomplete) {
+    const warning = document.createElement('div');
+    warning.className = 'note-card is-divvun';
+    warning.textContent = tr('checkIncomplete');
+    box.appendChild(warning);
+  }
   if (list.length === 0) {
-    badgeCount.classList.add('is-emerald');
+    badgeCount.classList.add(divvunCheckIncomplete ? 'is-amber' : 'is-emerald');
+    if (divvunCheckIncomplete) return;
     const okEl = document.createElement('div');
     okEl.className = 'note-card is-ok';
     okEl.textContent = tr('noErrors');
@@ -1098,11 +1106,14 @@ function displayFinalData(data) {
   }
 
   const finalErrs = data.final_divvun_errors || [];
+  divvunCheckIncomplete = Boolean(data.divvun_check_incomplete);
   renderErrors(finalErrs);
   renderTargetInteractiveView(finalOut, finalErrs);
   renderTips(data.step3_improvements || [], data.language_tips || []);
 
-  if (data.llm_active) {
+  if (data.result_incomplete || data.divvun_check_incomplete) {
+    setStatus('resultIncomplete');
+  } else if (data.llm_active) {
     setStatus('finishedWith', { model: data.used_model });
   } else {
     setStatus('finishedWithout');
@@ -1175,10 +1186,16 @@ async function runPipeline() {
       try {
         const errJson = await resp.json();
         if (errJson.detail) {
-          errDetail =
-            typeof errJson.detail === 'string'
-              ? errJson.detail
-              : JSON.stringify(errJson.detail);
+          if (typeof errJson.detail === 'string') {
+            errDetail = errJson.detail;
+          } else if (Array.isArray(errJson.detail)) {
+            const tooLong = errJson.detail.some(
+              (error) => error.type === 'string_too_long' && error.loc?.includes('text')
+            );
+            errDetail = tr(tooLong ? 'inputTooLong' : 'invalidRequest');
+          } else {
+            errDetail = tr('invalidRequest');
+          }
         }
       } catch {
         // behold HTTP-status
@@ -1204,8 +1221,11 @@ async function runPipeline() {
         lastProgress = null;
         receivedResult = true;
         const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
-        lastEndProgress = { step: 4, percent: 100, title: 'doneIn', params: { seconds: totalSec }, detailKey: 'allDone', state: 'done' };
-        updateProgressUI(4, 100, tr('doneIn', { seconds: totalSec }), tr('allDone'), 'done');
+        const incomplete = msg.data.result_incomplete || msg.data.divvun_check_incomplete;
+        lastEndProgress = incomplete
+          ? { step: 4, percent: 100, title: 'resultIncomplete', detailKey: 'resultIncomplete', state: 'error' }
+          : { step: 4, percent: 100, title: 'doneIn', params: { seconds: totalSec }, detailKey: 'allDone', state: 'done' };
+        updateProgressUI(4, 100, tr(lastEndProgress.title, lastEndProgress.params), tr(lastEndProgress.detailKey), lastEndProgress.state);
         displayFinalData(msg.data);
       } else if (msg.type === 'error') {
         throw new Error(msg.message || tr('streamError'));
@@ -1257,19 +1277,34 @@ async function recheckDivvun() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, source_lang: currentSourceLang }),
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.ok) {
+      if (resp.status === 422) {
+        const body = await resp.json();
+        const tooLong = Array.isArray(body.detail) && body.detail.some(
+          (error) => error.type === 'string_too_long' && error.loc?.includes('text')
+        );
+        setStatus(tooLong ? 'inputTooLong' : 'invalidRequest');
+        return;
+      }
+      throw new Error(`HTTP ${resp.status}`);
+    }
     const data = await resp.json();
     document.getElementById('pipelineDetails').hidden = false;
     const errs = data.errs || [];
+    divvunCheckIncomplete = Boolean(data.divvun_check_incomplete);
     renderErrors(errs);
     renderTargetInteractiveView(targetEl.value, errs);
-    lastImprovementTranslations = {};
-    renderTips([], data.language_tips || []);
+    lastImprovementTranslations = data.improvement_translations || {};
+    renderTips(data.warnings || [], data.language_tips || []);
     if (lastDiffBaselineText) {
       renderDiff(lastDiffBaselineText, targetEl.value);
     }
     switchTab('divvun');
-    setStatus('divvunDone', { count: (data.errs || []).length });
+    if (divvunCheckIncomplete) {
+      setStatus('checkIncomplete');
+    } else {
+      setStatus('divvunDone', { count: (data.errs || []).length });
+    }
   } catch {
     setStatus('divvunError');
   }
