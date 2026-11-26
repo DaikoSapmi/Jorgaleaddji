@@ -15,7 +15,7 @@ Et helhetlig oversettelses-, språkvask- og korrekturverktøy for nordsamisk (*d
 - **Endringsvisning (Diff) & samisk spesialtegn-rad:** Se nøyaktig hvilke ord som ble endret i språkvasken, og sett raskt inn `Á á Č č Đ đ Ŋ ŋ Š š Ŧ ŧ Ž ž ” –`.
 - **Ikke-påtrengende sluttkontroll:** Etter Gemini markerer Divvun grammatikk- og staveforslag for vurdering. Sluttkontrollen endrer ikke teksten automatisk; forslag brukes bare når brukeren klikker på dem. Innstillingen for automatisk Divvun-retting gjelder første runde før Gemini.
 - **Lange tekster:** Tekster på opptil 50 000 tegn deles automatisk opp ved linjeskift eller mellomrom før behandling og settes sammen igjen. Fremdriften viser hvilken del som behandles. Hvis Gemini eller Divvun ikke fullfører, vises en advarsel og feildetaljer under «Språkvask & råd»; kontroller resultatet før bruk.
-- **Raskt, selvstendig webgrensesnitt uten CDN-avhengigheter:** Ingen ekstern JS-kompilering ved oppstart, full tastatur- og skjermleserstøtte, avbryt-knapp (`AbortController`) og sikker nøkkelhåndtering via HTTP-headere.
+- **Raskt webgrensesnitt:** Ingen ekstern JS-kompilering ved oppstart, tastatur- og skjermleserstøtte, avbryt-knapp (`AbortController`) og nøkkelhåndtering via HTTP-headere. Enkelte nettlesere kan laste polyfills fra eksterne CDN-er; se krediteringene nederst.
 - **Språkvalg:** Grensesnitt, fremdrift og lokale språkråd følger valgt kildespråk (norsk, svensk, finsk, engelsk eller nordsamisk). Gemini-genererte råd og merknader fra eksterne tjenester kan foreløpig ha et annet språk.
 
 ### Vedlikehold av språkversjoner
@@ -57,3 +57,16 @@ docker compose exec sami-translator pytest
 # eller lokalt i et virtuelt miljø:
 pytest
 ```
+
+## Eksterne tjenester og kreditering
+
+Takk til utviklerne og språkfagmiljøene bak tjenestene og ressursene prosjektet bruker:
+
+- **[TartuNLP / Universitetet i Tartu](https://tartunlp.ai/)** – maskinoversettelse til nordsamisk. Se [API-dokumentasjonen](https://api.tartunlp.ai/translation/docs) og [prosjektets dokumentasjon](https://github.com/TartuNLP/translation-api).
+- **[Divvun](https://divvun.no/), UiT Norges arktiske universitet** – grammatikk- og stavekontroll gjennom [Divvun API](https://github.com/divvun/divvun-api).
+- **[Google Gemini API](https://ai.google.dev/gemini-api/docs)** – oversettelse og språkvask når Gemini er aktivert. [Google Gen AI SDK](https://github.com/googleapis/python-genai) brukes til API-kall; se også [vilkårene for Gemini API](https://ai.google.dev/gemini-api/terms).
+- **[Sátni.org](https://satni.org/)** – ord- og termoppslag som åpnes på brukerens initiativ. Se [Sátni.org-prosjektet](https://github.com/divvun/satni-frontend).
+- **[esm.sh](https://esm.sh/)** – leverer `@microsoft/focusgroup-polyfill` til nettlesere som trenger den. **[UNPKG](https://unpkg.com/)** leverer [OddBirds popover-polyfill](https://github.com/oddbird/popover-polyfill), med [BSD-3-Clause-lisens](https://github.com/oddbird/popover-polyfill/blob/main/LICENSE), når nettleseren mangler støtte.
+- **Sámediggi / Sámi Giellagáldu og NRK Sápmi** – språkfaglig normgrunnlag, som beskrevet under «Språklig normgrunnlag». Referansefilene i `.agent/skills/giellaverdde/references/` oppgir også kilder for de enkelte språkreglene.
+
+Tjenestene har egne vilkår og personvernregler. Tekst kan sendes til TartuNLP, Divvun og Google som del av behandlingen; vurder derfor om teksten kan deles med disse leverandørene. Sjekk gjeldende bruksvilkår, lisens og eventuelle krav om synlig kreditering hos hver leverandør før offentlig drift. Kreditering her er ikke en bekreftelse på at alle slike krav eller rettigheter til referansematerialet er avklart.
