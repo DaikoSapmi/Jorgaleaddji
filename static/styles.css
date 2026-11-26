@@ -395,7 +395,7 @@ a:focus-visible {
 
 /* Main Layout */
 .main-container {
-  flex: 1;
+  flex: 0 0 auto;
   max-inline-size: 80rem;
   inline-size: 100%;
   margin-inline: auto;
@@ -406,7 +406,7 @@ a:focus-visible {
 }
 
 .site-footer {
-  padding: 1rem;
+  padding: 0 1rem 1.25rem;
   text-align: center;
   font-size: 0.8rem;
 }
