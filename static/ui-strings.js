@@ -456,7 +456,7 @@ export const UI_STRINGS = {
     "sourceLanguage": "Vállje gáldogiela",
     "shortcut": "Jođánisboallu jorgaleapmái",
     "example": "Ovdamearka",
-    "clear": "Sálke",
+    "clear": "Sihko",
     "sourceText": "Gáldoteaksta",
     "targetText": "Davvisámegiel teaksta",
     "recheck": "Dárkkis Divvuniin",
