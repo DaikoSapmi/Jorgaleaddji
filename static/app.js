@@ -56,11 +56,11 @@ const LANG_UI = {
 };
 
 const STARTER_GLOSSARY = {
-  nor: 'Statsforvalteren = Stáhtahálddašeaddji\nSametinget = Sámediggi\nkommunestyret = suohkanstivra\nformannskapet = suohkanráđđi\nsaksbehandler = áššemeannudeaddji\nkunstig intelligens = dáhkkon jierbmi',
-  swe: 'Sametinget = Sámediggi\nkommunfullmäktige = suohkanstivra\nhandläggare = áššemeannudeaddji\nartificiell intelligens = dáhkkon jierbmi',
-  fin: 'Saamelaiskäräjät = Sámediggi\nkunnanvaltuusto = suohkanstivra\nkäsittelijä = áššemeannudeaddji\ntekoäly = dáhkkon jierbmi',
-  eng: 'Sámi Parliament = Sámediggi\nmunicipal council = suohkanstivra\ncase officer = áššemeannudeaddji\nartificial intelligence = dáhkkon jierbmi',
-  sme: 'Sámediggi = Sámediggi\nsuohkanstivra = suohkanstivra\náššemeannudeaddji = áššemeannudeaddji',
+  nor: 'Statsforvalteren = Stáhtahálddašeaddji\nSametinget = Sámediggi\nkommunestyret = suohkanstivra\nformannskapet = ovdagoddi\nsaksbehandler = áššemeannudeaddji\nkunstig intelligens = dahkujierbmi',
+  swe: 'Sametinget = Sámediggi\nkommunfullmäktige = ovdagoddi\nhandläggare = áššemeannudeaddji\nartificiell intelligens = dahkujierbmi',
+  fin: 'Saamelaiskäräjät = Sámediggi\nkunnanvaltuusto = ovdagoddi\nkäsittelijä = áššemeannudeaddji\ntekoäly = dahkujierbmi',
+  eng: 'Sámi Parliament = Sámediggi\nmunicipal council = ovdagoddi\ncase officer = áššemeannudeaddji\nartificial intelligence = dahkujierbmi',
+  sme: 'Sámediggi = Sámediggi\nsuohkanstivra = ovdagoddi\náššemeannudeaddji = áššemeannudeaddji',
 };
 
 const TARGET_PLACEHOLDERS = {
