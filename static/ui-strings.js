@@ -18,7 +18,7 @@ export const UI_STRINGS = {
     "medium": "Middels (anbefalt balanse)",
     "high": "Høy (grundigst språkanalyse)",
     "apiKey": "Gemini API-nøkkel",
-    "keyHelp": "Hvordan skaffer jeg en nøkkel?",
+    "keyHelp": "Hvordan skaffe nøkkel?",
     "keyHelpTitle": "Slik skaffer du en Gemini-nøkkel",
     "keyHelpIntro": "En API-nøkkel er en personlig kode som lar Jorgaleaddji bruke Googles Gemini-tjeneste.",
     "keyHelpStep1": "Åpne Google AI Studio og logg inn med Google-kontoen din.",
