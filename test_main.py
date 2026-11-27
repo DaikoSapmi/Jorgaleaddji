@@ -226,6 +226,52 @@ class TestJorgaleaddjiCore(unittest.TestCase):
 
 
 class TestAsyncPipeline(unittest.IsolatedAsyncioTestCase):
+    async def test_model_discovery_only_offers_configured_choices(self):
+        async def models():
+            for name in ("gemini-4-carbon", "gemini-3.8-flash", "gemini-4-hydrogen", "gemini-4-argon"):
+                yield types.SimpleNamespace(name=f"models/{name}")
+
+        fake_client = MagicMock()
+        fake_client.aio.models.list = AsyncMock(return_value=models())
+        with patch("main.genai.Client", return_value=fake_client):
+            available = await main.fetch_available_gemini_models("test-key")
+        self.assertEqual(
+            [model["id"] for model in available],
+            ["gemini-4-hydrogen", "gemini-4-argon", "gemini-3.8-flash"],
+        )
+
+    async def test_gemini_fallback_order_never_adds_unlisted_models(self):
+        error = Exception("404 Not Found")
+        error.code = 404
+        interaction = types.SimpleNamespace(
+            status="completed",
+            output_text='{"final_translation":"Sámi teaksta","improvements":[]}',
+            steps=[],
+        )
+        for selected, expected in (
+            ("gemini-4-hydrogen", ["gemini-4-hydrogen", "gemini-3.8-flash", "gemini-3.5-flash-lite"]),
+            ("gemini-4-argon", ["gemini-4-argon", "gemini-4-hydrogen", "gemini-3.8-flash", "gemini-3.5-flash-lite"]),
+        ):
+            with self.subTest(model=selected):
+                client = MagicMock()
+                client.aio.interactions.create = AsyncMock(side_effect=[error] * (len(expected) - 1) + [interaction])
+                with (
+                    patch("main.genai.Client", return_value=client),
+                    patch("main.fetch_available_gemini_models", new=AsyncMock()) as discovery,
+                ):
+                    result = await main.call_gemini_refiner(
+                        source_text="Sámi teaksta", tartu_draft=None, divvun_corrected=None,
+                        divvun_errs=[], local_tips=[], override_key="test-key",
+                        override_model=selected, source_lang="sme",
+                    )
+                self.assertEqual(
+                    [call.kwargs["model"] for call in client.aio.interactions.create.await_args_list],
+                    expected,
+                )
+                self.assertEqual(result["used_model"], "gemini-3.5-flash-lite")
+                self.assertTrue(result["llm_active"])
+                discovery.assert_not_awaited()
+
     async def test_long_sami_pipeline_preserves_text_and_adjusts_error_offsets(self):
         source = ("Álgo sámi teaksta.\n\n" * 2499) + "Loahppa."
         self.assertGreater(len(source), 45000)

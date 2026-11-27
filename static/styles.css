@@ -364,6 +364,39 @@ a:focus-visible {
   border-radius: var(--radius-sm);
 }
 
+.key-help-dialog {
+  inline-size: min(32rem, calc(100vw - 2rem));
+  max-block-size: calc(100dvh - 2rem);
+  overflow: auto;
+  padding: 1.25rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-body);
+  font-size: 0.875rem;
+}
+
+.key-help-dialog::backdrop {
+  background: rgb(15 23 42 / 0.3);
+}
+
+.key-help-dialog h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.key-help-dialog ol {
+  padding-inline-start: 1.25rem;
+}
+
+.key-help-dialog li + li {
+  margin-block-start: 0.4rem;
+}
+
+.key-help-dialog a {
+  color: var(--accent);
+}
+
 .glossary-textarea {
   resize: vertical;
   min-block-size: 4.25rem;

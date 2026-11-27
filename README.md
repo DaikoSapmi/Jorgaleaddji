@@ -10,7 +10,7 @@ Et helhetlig oversettelses-, språkvask- og korrekturverktøy for nordsamisk (*d
 5. **Davvisámegiella → Davvisámegiella (Direkte språkvask & korrektur):** Skånsom, normtro språkvask av nordsamisk tekst som retter ortografi, stadieveksling, rekšuvdna, tegnsetting og substantivsyke uten å viske ut forfatterens stemme.
 
 ## Nytt i Gemini 4 Edition
-- **Google GenAI SDK (`google-genai >= 3.2.0`) & Interactions API:** Støtter `gemini-4-hydrogen` (standard), `gemini-4-argon`, `gemini-4-carbon` og `gemini-3.5-flash-lite`, med valgbar tenkedybde (`low`, `medium`, `high`). Gemini-forespørsler har en timeout på 10 minutter.
+- **Google GenAI SDK (`google-genai >= 3.2.0`) & Interactions API:** Modellvalget omfatter `gemini-4-hydrogen` (standard), `gemini-4-argon`, `gemini-3.8-flash` og `gemini-3.5-flash-lite`, med valgbar tenkedybde (`low`, `medium`, `high`). Ved utilgjengelig modell eller kvoteproblemer forsøkes Hydrogen, deretter Flash og Flash-Lite, uten å prøve Argon automatisk. Tilgjengelighet, kvoter og priser avhenger av Google og API-prosjektet; sjekk [Googles priser](https://ai.google.dev/gemini-api/docs/pricing). Gemini-forespørsler har en timeout på 10 minutter.
 - **Egen ordliste / terminologi & hurtigoppslag i Sátni.org:** Legg inn faste fagtermer (`kildeord = samisk term`) og slå opp markerte ord direkte i Giellagáldus termbase på [Sátni.org](https://satni.org).
 - **Endringsvisning (Diff) & samisk spesialtegn-rad:** Se nøyaktig hvilke ord som ble endret i språkvasken, og sett raskt inn `Á á Č č Đ đ Ŋ ŋ Š š Ŧ ŧ Ž ž ” –`.
 - **Ikke-påtrengende sluttkontroll:** Etter Gemini markerer Divvun grammatikk- og staveforslag for vurdering. Sluttkontrollen endrer ikke teksten automatisk; forslag brukes bare når brukeren klikker på dem. Innstillingen for automatisk Divvun-retting gjelder første runde før Gemini.
@@ -49,6 +49,8 @@ docker compose up -d --build
 ```
 
 Åpne deretter `http://localhost:8090` i nettleseren.
+
+I Innstillinger finnes en veiledning ved Gemini API-nøkkelfeltet. En nøkkel som legges inn der, lagres i nettleseren; tøm feltet og klikk utenfor for å fjerne den fra nettleseren.
 
 ## Kjøre tester
 

@@ -1,6 +1,6 @@
 // Jorgaleaddji & Divvun Studio – Client Application
 
-import { UI_STRINGS } from './ui-strings.js?v=3';
+import { UI_STRINGS } from './ui-strings.js?v=4';
 
 const STORAGE_KEYS = {
   apiKey: 'sami_gemini_key',
@@ -79,13 +79,13 @@ const TARGET_LABELS = {
 };
 
 const MODEL_DESCRIPTIONS = {
-  nor: ['Rask og gratisnivå', 'Presis og effektiv', 'Dypest resonnering', 'Lynrask lettvekter'],
-  swe: ['Snabb och gratisnivå', 'Precis och effektiv', 'Djupast resonemang', 'Blixtsnabb lättviktsmodell'],
-  fin: ['Nopea ja maksuton taso', 'Tarkka ja tehokas', 'Syvällisin päättely', 'Salamannopea kevyt malli'],
-  eng: ['Fast and free tier', 'Precise and efficient', 'Deepest reasoning', 'Lightning-fast lightweight model'],
-  sme: ['Jođánis ja nuvttádássi', 'Dárkilis ja beaktilis', 'Čiekŋaleamos jurddašeapmi', 'Hui jođánis geahppis modealla'],
+  nor: ['Standard', 'Alternativ', 'Reservevalg', 'Reservevalg'],
+  swe: ['Standard', 'Alternativ', 'Reservval', 'Reservval'],
+  fin: ['Oletus', 'Vaihtoehto', 'Varavaihtoehto', 'Varavaihtoehto'],
+  eng: ['Default', 'Alternative', 'Fallback', 'Fallback'],
+  sme: ['Standárda', 'Eará válljen', 'Várreválljen', 'Várreválljen'],
 };
-const MODEL_IDS = ['gemini-4-hydrogen', 'gemini-4-argon', 'gemini-4-carbon', 'gemini-3.5-flash-lite'];
+const MODEL_IDS = ['gemini-4-hydrogen', 'gemini-4-argon', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'];
 
 const sourceEl = document.getElementById('sourceText');
 const targetEl = document.getElementById('targetText');
@@ -147,6 +147,17 @@ function translateStaticUI() {
     '#thinkingLevel option[value="medium"]': 'medium',
     '#thinkingLevel option[value="high"]': 'high',
     'label[for="geminiKeyInput"]': 'apiKey',
+    '#keyHelpBtn': 'keyHelp',
+    '#keyHelpTitle': 'keyHelpTitle',
+    '#keyHelpIntro': 'keyHelpIntro',
+    '#keyHelpStep1': 'keyHelpStep1',
+    '#keyHelpStep2': 'keyHelpStep2',
+    '#keyHelpStep3': 'keyHelpStep3',
+    '#keyHelpStep4': 'keyHelpStep4',
+    '#keyHelpSecurity': 'keyHelpSecurity',
+    '#keyHelpPrice': 'keyHelpPrice',
+    '#keyHelpPriceLink': 'keyHelpPriceLink',
+    '#keyHelpClose': 'close',
     '#autoApplyDivvun + span': 'autoDivvun',
     '#useLlm + span': 'useGemini',
     'label[for="glossaryInput"]': 'glossary',
@@ -1338,6 +1349,13 @@ function initApp() {
 
   const savedLang = localStorage.getItem(STORAGE_KEYS.lang) || 'nor';
   setSourceLang(savedLang, false);
+
+  document.getElementById('keyHelpBtn').addEventListener('click', () => {
+    document.getElementById('keyHelpDialog').showModal();
+  });
+  document.getElementById('keyHelpClose').addEventListener('click', () => {
+    document.getElementById('keyHelpDialog').close();
+  });
 
   document.getElementById('creditsToggle').addEventListener('click', (event) => {
     const button = event.currentTarget;

@@ -32,36 +32,22 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL) or DEFAULT_GEMINI_MODEL
 
 DEPRECATED_MODEL_PREFIXES = ("gemini-2.5", "gemini-2.0", "gemini-1.5")
-NON_TEXT_MODEL_KEYWORDS = (
-    "tts",
-    "image",
-    "nano-banana",
-    "omni",
-    "embedding",
-    "transcribe",
-    "live",
-    "decision",
-    "imagen",
-    "veo",
-    "aqa",
-)
-
 DEFAULT_MODEL_CHOICES: List[Dict[str, str]] = [
     {
         "id": "gemini-4-hydrogen",
-        "display_name": "Gemini 4 Hydrogen (Rask & støtter gratisnivå)",
+        "display_name": "Gemini 4 Hydrogen",
     },
     {
         "id": "gemini-4-argon",
-        "display_name": "Gemini 4 Argon (Anbefalt – presis & effektiv)",
+        "display_name": "Gemini 4 Argon",
     },
     {
-        "id": "gemini-4-carbon",
-        "display_name": "Gemini 4 Carbon (Maksimal resonneringsdybde)",
+        "id": "gemini-3.8-flash",
+        "display_name": "Gemini 3.8 Flash",
     },
     {
         "id": "gemini-3.5-flash-lite",
-        "display_name": "Gemini 3.5 Flash-Lite (Lynrask lettvekter)",
+        "display_name": "Gemini 3.5 Flash-Lite",
     },
 ]
 
@@ -516,17 +502,6 @@ def extract_interaction_text(interaction: object) -> str:
     return "".join(collected)
 
 
-def is_supported_text_model(model_id: str) -> bool:
-    lower = model_id.lower()
-    if not (lower.startswith("gemini-") or lower.startswith("gemma-4-")):
-        return False
-    if any(lower.startswith(prefix) for prefix in DEPRECATED_MODEL_PREFIXES):
-        return False
-    if any(kw in lower for kw in NON_TEXT_MODEL_KEYWORDS):
-        return False
-    return True
-
-
 async def fetch_available_gemini_models(api_key: str) -> List[Dict[str, str]]:
     active_key = (api_key or "").strip()
     if not active_key or active_key == PLACEHOLDER_KEY:
@@ -537,32 +512,17 @@ async def fetch_available_gemini_models(api_key: str) -> List[Dict[str, str]]:
             api_key=active_key,
             http_options={"timeout": GEMINI_REQUEST_TIMEOUT_MS},
         )
-        discovered: Dict[str, str] = {}
+        discovered = set()
         pager = await client.aio.models.list()
         async for m in pager:
             raw_name = getattr(m, "name", "") or ""
             model_id = raw_name.replace("models/", "").strip()
-            if not model_id or not is_supported_text_model(model_id):
-                continue
-            display_name = getattr(m, "display_name", None) or model_id
-            discovered[model_id] = display_name
+            discovered.add(model_id)
 
-        if not discovered:
+        available = [choice for choice in DEFAULT_MODEL_CHOICES if choice["id"] in discovered]
+        if not available:
             return list(DEFAULT_MODEL_CHOICES)
-
-        priority_order = [c["id"] for c in DEFAULT_MODEL_CHOICES]
-        default_labels = {c["id"]: c["display_name"] for c in DEFAULT_MODEL_CHOICES}
-        ordered: List[Dict[str, str]] = []
-
-        for pid in priority_order:
-            if pid in discovered:
-                ordered.append({"id": pid, "display_name": default_labels[pid]})
-                discovered.pop(pid, None)
-
-        for mid in sorted(discovered.keys(), reverse=True):
-            ordered.append({"id": mid, "display_name": discovered[mid]})
-
-        return ordered
+        return available
     except Exception as exc:
         logger.warning("Kunne ikke hente modelliste fra Gemini API: %s", sanitize_error_message(str(exc), active_key))
         return list(DEFAULT_MODEL_CHOICES)
@@ -1209,9 +1169,8 @@ async def call_gemini_refiner(
 
     fallback_candidates = [
         requested_model,
-        "gemini-4-argon",
         "gemini-4-hydrogen",
-        "gemini-4-carbon",
+        "gemini-3.8-flash",
         "gemini-3.5-flash-lite",
     ]
     models_to_try = list(dict.fromkeys(fallback_candidates))
@@ -1233,7 +1192,6 @@ async def call_gemini_refiner(
         add_local_improvement(result, source_lang, "sdk_error", error=safe_err)
         return result
 
-    tried_dynamic_list = False
     idx = 0
     while idx < len(models_to_try):
         candidate_model = models_to_try[idx]
@@ -1359,12 +1317,6 @@ async def call_gemini_refiner(
                     continue
 
                 if should_fallback:
-                    if status_code == 404 and not tried_dynamic_list:
-                        tried_dynamic_list = True
-                        avail = await fetch_available_gemini_models(active_key)
-                        for m in avail:
-                            if m["id"] not in models_to_try:
-                                models_to_try.append(m["id"])
                     break
 
                 result = {
