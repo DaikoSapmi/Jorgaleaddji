@@ -123,6 +123,7 @@ let lastImprovementTranslations = {};
 let lastErrors = [];
 let divvunCheckIncomplete = false;
 let divvunCheckStale = false;
+let lastDivvunWarnings = [];
 let lastResult = null;
 let lastProgress = null;
 let lastEndProgress = null;
@@ -700,8 +701,9 @@ function divvunOffsetsForBrowser(text, errors) {
 }
 
 // --- XSS-Safe Rendering of Errors, Tips & Word-Level Diff ---
-function renderErrors(errs) {
+function renderErrors(errs, warnings = lastDivvunWarnings) {
   lastErrors = Array.isArray(errs) ? errs : [];
+  lastDivvunWarnings = Array.isArray(warnings) ? warnings : [];
   const box = document.getElementById('divvunErrorsBox');
   const badgeCount = document.getElementById('badgeDivvunCount');
   const list = Array.isArray(errs) ? errs : [];
@@ -714,6 +716,12 @@ function renderErrors(errs) {
     warning.className = 'note-card is-divvun';
     warning.textContent = tr(divvunCheckStale ? 'recheckNeeded' : 'checkIncomplete');
     box.appendChild(warning);
+  }
+  for (const warning of lastDivvunWarnings) {
+    const note = document.createElement('div');
+    note.className = 'note-card is-divvun';
+    note.textContent = warning?.[currentSourceLang] || warning;
+    box.appendChild(note);
   }
   if (list.length === 0) {
     badgeCount.classList.add(divvunCheckIncomplete || divvunCheckStale ? 'is-amber' : 'is-emerald');
@@ -1128,7 +1136,7 @@ function displayFinalData(data) {
   divvunRequestId++;
   divvunCheckStale = false;
   divvunCheckIncomplete = Boolean(data.divvun_check_incomplete);
-  renderErrors(finalErrs);
+  renderErrors(finalErrs, data.divvun_warnings || []);
   renderTargetInteractiveView(finalOut, finalErrs);
   renderTips(data.step3_improvements || [], data.language_tips || []);
 
@@ -1319,7 +1327,7 @@ async function recheckDivvun(showTab = true) {
     const errs = divvunOffsetsForBrowser(text, data.errs || []);
     divvunCheckStale = false;
     divvunCheckIncomplete = Boolean(data.divvun_check_incomplete);
-    renderErrors(errs);
+    renderErrors(errs, data.divvun_warnings || []);
     renderTargetInteractiveView(targetEl.value, errs);
     lastImprovementTranslations = data.improvement_translations || {};
     renderTips(data.warnings || [], data.language_tips || []);

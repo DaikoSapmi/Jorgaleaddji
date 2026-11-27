@@ -26,6 +26,9 @@ DIVVUN_SPELLER_URL = "https://api-giellalt.uit.no/speller/se"
 DEFAULT_GEMINI_MODEL = "gemini-4-hydrogen"
 GEMINI_REQUEST_TIMEOUT_MS = 600_000
 PIPELINE_CHUNK_SIZE = 3500
+DIVVUN_GRAMMAR_CHUNK_SIZE = 1200
+DIVVUN_GRAMMAR_CONCURRENCY = 4
+DIVVUN_GRAMMAR_REQUEST_TIMEOUT = 20.0
 PLACEHOLDER_KEY = "din_gemini_api_nokkel_her"
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -658,15 +661,23 @@ async def call_divvun_grammar(text: str) -> dict:
                 DIVVUN_GRAMMAR_URL,
                 json={"text": text},
                 headers={"Content-Type": "application/json"},
-                timeout=35.0,
+                timeout=DIVVUN_GRAMMAR_REQUEST_TIMEOUT,
             )
             if resp.status_code == 200:
                 return resp.json()
             logger.warning("Divvun API svarte med HTTP %s", resp.status_code)
             return {"text": text, "errs": [], "api_error": f"HTTP {resp.status_code}"}
+        except httpx.TimeoutException:
+            error = f"timeout etter {DIVVUN_GRAMMAR_REQUEST_TIMEOUT:g} sekunder"
+            logger.warning("Divvun API timeout: %s", error)
+            return {"text": text, "errs": [], "api_error": error}
         except Exception as exc:
             logger.warning("Divvun API nettverksfeil: %s", exc)
-            return {"text": text, "errs": [], "api_error": str(exc) or type(exc).__name__}
+            return {
+                "text": text,
+                "errs": [],
+                "api_error": str(exc).strip() or type(exc).__name__,
+            }
     return {"text": text, "errs": []}
 
 
@@ -1343,6 +1354,7 @@ async def call_gemini_refiner(
 async def _run_single_pipeline_events(
     req: TranslateRequest,
     header_api_key: Optional[str] = None,
+    pipeline_chunk: Optional[Tuple[int, int]] = None,
 ) -> AsyncGenerator[dict, None]:
     """Felles pipeline-generator som brukes av både /api/translate og /api/translate-stream."""
     src_lang = req.source_lang
@@ -1374,7 +1386,7 @@ async def _run_single_pipeline_events(
     )
 
     if tartu_raw is not None:
-        divvun_initial = await call_divvun_grammar(tartu_raw)
+        divvun_initial = await call_divvun_grammar_chunked(tartu_raw)
         initial_errs = divvun_initial.get("errs", [])
         divvun_pre_corrected: Optional[str] = (
             apply_divvun_suggestions(
@@ -1442,7 +1454,10 @@ async def _run_single_pipeline_events(
     yield progress_event(src_lang, 4, 88, "step4", "step4_detail")
 
     final_text = gemini_text
-    final_divvun = await call_divvun_grammar(final_text) if final_text.strip() else {"errs": []}
+    final_divvun = (
+        await call_divvun_grammar_chunked(final_text)
+        if final_text.strip() else {"errs": [], "api_errors": []}
+    )
     final_errs = final_divvun.get("errs", [])
 
     # Sluttkontrollen skal bare vise feil og foreslå rettinger; teksten endres ikke her.
@@ -1456,12 +1471,29 @@ async def _run_single_pipeline_events(
         speller_error = str(exc)
     localize_speller_errors(speller_errs, src_lang)
     merged_final_errs = merge_divvun_errors(final_errs, speller_errs)
-    if tartu_raw is not None and divvun_initial.get("api_error"):
-        add_local_improvement(llm_result, src_lang, "divvun_initial_error", error=divvun_initial["api_error"])
-    if final_divvun.get("api_error"):
-        add_local_improvement(llm_result, src_lang, "divvun_grammar_error", error=final_divvun["api_error"])
+    divvun_warnings: List[Dict[str, str]] = []
+    context = pipeline_chunk
+    if tartu_raw is not None:
+        for failure in divvun_initial.get("api_errors", []):
+            divvun_warnings.append(add_divvun_chunk_notice(
+                llm_result, src_lang, "divvun_initial_chunk_error",
+                current=failure["current"], total=failure["total"],
+                context=divvun_chunk_context(pipeline_chunk, src_lang),
+                error=failure["error"],
+            ))
+    for failure in final_divvun.get("api_errors", []):
+        divvun_warnings.append(add_divvun_chunk_notice(
+            llm_result, src_lang, "divvun_grammar_chunk_error",
+            current=failure["current"], total=failure["total"],
+            context=divvun_chunk_context(context, src_lang),
+            error=failure["error"],
+        ))
     if speller_error:
-        add_local_improvement(llm_result, src_lang, "divvun_speller_error", error=speller_error)
+        divvun_warnings.append(add_divvun_chunk_notice(
+            llm_result, src_lang, "divvun_speller_error",
+            current=1, total=1, context=divvun_chunk_context(context, src_lang),
+            error=speller_error,
+        ))
 
     final_local_tips = (
         local_heuristic_checks("" if is_sami_source else req.text, final_text, src_lang)
@@ -1494,9 +1526,10 @@ async def _run_single_pipeline_events(
         "used_model": llm_result.get("used_model"),
         "final_divvun_errors": merged_final_errs,
         "divvun_check_incomplete": bool(
-            (tartu_raw is not None and divvun_initial.get("api_error"))
-            or final_divvun.get("api_error") or speller_error
+            (tartu_raw is not None and divvun_initial.get("api_errors"))
+            or final_divvun.get("api_errors") or speller_error
         ),
+        "divvun_warnings": divvun_warnings,
         "language_tips": combined_tips,
     }
 
@@ -1530,6 +1563,86 @@ def split_pipeline_text(text: str, limit: int = PIPELINE_CHUNK_SIZE) -> List[Tup
     return parts
 
 
+def divvun_chunk_context(context: Optional[Tuple[int, int]], lang: str) -> str:
+    if not context:
+        return ""
+    current, total = context
+    labels = {
+        "nor": f" i tekstdel {current} av {total}",
+        "swe": f" i textdel {current} av {total}",
+        "fin": f" tekstiosassa {current}/{total}",
+        "eng": f" in text part {current} of {total}",
+        "sme": f" teavstaoasis {current}/{total}",
+    }
+    return labels.get(lang, labels["nor"])
+
+
+def add_divvun_chunk_notice(
+    result: dict,
+    lang: str,
+    key: str,
+    *,
+    current: int,
+    total: int,
+    context: str,
+    error: str,
+) -> Dict[str, str]:
+    variants = {
+        language: ui_message(
+            language, key, current=current, total=total, context=context, error=error
+        )
+        for language in UI_LANGUAGES
+    }
+    message = variants[lang]
+    result.setdefault("improvements", []).append(message)
+    result.setdefault("improvement_translations", {})[message] = variants
+    result.setdefault("divvun_warnings", []).append(variants)
+    return variants
+
+
+async def call_divvun_grammar_chunked(text: str) -> dict:
+    """Kontrollerer grammatikk i korte biter og bevarer treff og feil per bit."""
+    parts = split_pipeline_text(text, limit=DIVVUN_GRAMMAR_CHUNK_SIZE)
+    semaphore = asyncio.Semaphore(DIVVUN_GRAMMAR_CONCURRENCY)
+
+    async def check_part(index: int, part: str) -> dict:
+        async with semaphore:
+            response = await call_divvun_grammar(part)
+        return {"index": index, **response}
+
+    results = await asyncio.gather(
+        *(check_part(index, part) for index, (part, _) in enumerate(parts))
+    )
+    errors: List[dict] = []
+    api_errors: List[dict] = []
+    offset = 0
+    for (part, separator), response in zip(parts, results):
+        for error in response.get("errs") or []:
+            adjusted = dict(error)
+            if isinstance(adjusted.get("start_index"), int):
+                adjusted["start_index"] += offset
+            if isinstance(adjusted.get("end_index"), int):
+                adjusted["end_index"] += offset
+            errors.append(adjusted)
+        if response.get("api_error"):
+            api_errors.append({
+                "current": response["index"] + 1,
+                "total": len(parts),
+                "error": response["api_error"],
+            })
+        offset += len(part) + len(separator)
+
+    return {
+        "text": text,
+        "errs": errors,
+        "api_errors": api_errors,
+        "api_error": "; ".join(
+            f"del {failure['current']}/{failure['total']}: {failure['error']}"
+            for failure in api_errors
+        ) or None,
+    }
+
+
 async def run_translation_pipeline_events(
     req: TranslateRequest,
     header_api_key: Optional[str] = None,
@@ -1542,7 +1655,11 @@ async def run_translation_pipeline_events(
 
     results: List[dict] = []
     for index, (text, _) in enumerate(parts):
-        async for event in _run_single_pipeline_events(req.model_copy(update={"text": text}), header_api_key):
+        async for event in _run_single_pipeline_events(
+            req.model_copy(update={"text": text}),
+            header_api_key,
+            pipeline_chunk=(index + 1, len(parts)),
+        ):
             if event["type"] == "progress":
                 for lang, translation in event["translations"].items():
                     translation["detail"] = (
@@ -1564,6 +1681,7 @@ async def run_translation_pipeline_events(
     merged["improvement_translations"] = {}
     merged["step2_divvun_initial_errors"] = []
     merged["final_divvun_errors"] = []
+    merged["divvun_warnings"] = []
     merged["language_tips"] = []
     merged["result_incomplete"] = any(result["result_incomplete"] for result in results)
     merged["divvun_check_incomplete"] = any(result["divvun_check_incomplete"] for result in results)
@@ -1608,6 +1726,7 @@ async def run_translation_pipeline_events(
         raw_offset += len(raw_text) + len(separator)
         merged["step3_improvements"].extend(result["step3_improvements"])
         merged["improvement_translations"].update(result["improvement_translations"])
+        merged["divvun_warnings"].extend(result.get("divvun_warnings", []))
         for tip in result["language_tips"]:
             if tip not in merged["language_tips"]:
                 merged["language_tips"].append(tip)
@@ -1670,27 +1789,38 @@ async def proofread_only(req: ProofreadRequest):
     """Lar brukeren kjøre ren Divvun-korrektur + Speller (/speller/se) + språksjekk når de redigerer den samiske teksten manuelt."""
     if not req.text.strip():
         raise HTTPException(status_code=400, detail=ui_message(req.source_lang, "empty_text"))
-    merged_errs: List[dict] = []
+    grammar_result = await call_divvun_grammar_chunked(req.text)
     warnings: dict = {}
+    divvun_warnings: List[Dict[str, str]] = []
+    for failure in grammar_result.get("api_errors", []):
+        divvun_warnings.append(add_divvun_chunk_notice(
+            warnings, req.source_lang, "divvun_grammar_chunk_error",
+            current=failure["current"], total=failure["total"], context="", error=failure["error"],
+        ))
+
+    speller_errs: List[dict] = []
+    speller_parts = split_pipeline_text(req.text)
     offset = 0
-    for text, separator in split_pipeline_text(req.text):
-        divvun_res = await call_divvun_grammar(text)
+    for index, (text, separator) in enumerate(speller_parts):
         try:
-            speller_errs = await call_divvun_speller(text)
+            part_errors = await call_divvun_speller(text)
         except DivvunSpellerError as exc:
-            speller_errs = []
-            add_local_improvement(warnings, req.source_lang, "divvun_speller_error", error=str(exc))
-        if divvun_res.get("api_error"):
-            add_local_improvement(warnings, req.source_lang, "divvun_grammar_error", error=divvun_res["api_error"])
-        localize_speller_errors(speller_errs, req.source_lang)
-        for error in merge_divvun_errors(divvun_res.get("errs", []), speller_errs):
+            part_errors = []
+            divvun_warnings.append(add_divvun_chunk_notice(
+                warnings, req.source_lang, "divvun_speller_chunk_error",
+                current=index + 1, total=len(speller_parts), context="", error=str(exc),
+            ))
+        localize_speller_errors(part_errors, req.source_lang)
+        for error in part_errors:
             adjusted = dict(error)
             if isinstance(adjusted.get("start_index"), int):
                 adjusted["start_index"] += offset
             if isinstance(adjusted.get("end_index"), int):
                 adjusted["end_index"] += offset
-            merged_errs.append(adjusted)
+            speller_errs.append(adjusted)
         offset += len(text) + len(separator)
+
+    merged_errs = merge_divvun_errors(grammar_result.get("errs", []), speller_errs)
     tips = local_heuristic_checks("", req.text, req.source_lang)
     return {
         "text": req.text,
@@ -1698,7 +1828,8 @@ async def proofread_only(req: ProofreadRequest):
         "language_tips": tips,
         "warnings": warnings.get("improvements", []),
         "improvement_translations": warnings.get("improvement_translations", {}),
-        "divvun_check_incomplete": bool(warnings),
+        "divvun_check_incomplete": bool(divvun_warnings),
+        "divvun_warnings": divvun_warnings,
     }
 
 

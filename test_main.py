@@ -376,6 +376,62 @@ class TestAsyncPipeline(unittest.IsolatedAsyncioTestCase):
                     await main.call_divvun_speller("tekst")
         self.assertEqual(grammar["api_error"], "HTTP 413")
 
+    async def test_chunked_grammar_keeps_successful_offsets_when_one_part_fails(self):
+        text = ("a" * main.DIVVUN_GRAMMAR_CHUNK_SIZE) + " " + (
+            "b" * main.DIVVUN_GRAMMAR_CHUNK_SIZE
+        ) + " c"
+
+        async def grammar(part):
+            if part.startswith("a"):
+                return {"errs": [{"start_index": 0, "end_index": 1, "error_text": "a"}]}
+            if part.startswith("b"):
+                return {"errs": [], "api_error": "timeout after 20 seconds"}
+            return {"errs": [{"start_index": 0, "end_index": 1, "error_text": "c"}]}
+
+        with patch("main.call_divvun_grammar", new=AsyncMock(side_effect=grammar)) as mock:
+            result = await main.call_divvun_grammar_chunked(text)
+
+        self.assertEqual(mock.await_count, 3)
+        self.assertEqual(
+            [(err["start_index"], err["end_index"]) for err in result["errs"]],
+            [(0, 1), (2 * main.DIVVUN_GRAMMAR_CHUNK_SIZE + 2,
+                      2 * main.DIVVUN_GRAMMAR_CHUNK_SIZE + 3)],
+        )
+        self.assertEqual(result["api_errors"], [{
+            "current": 2, "total": 3, "error": "timeout after 20 seconds",
+        }])
+
+    async def test_translation_finishes_and_reports_only_failed_grammar_parts(self):
+        text = ("sámi orð " * 300).strip()
+        request = main.TranslateRequest(text=text, source_lang="sme", use_llm=False)
+        grammar_calls = 0
+
+        async def grammar(part):
+            nonlocal grammar_calls
+            grammar_calls += 1
+            if grammar_calls <= 3:
+                return {"errs": []}
+            if grammar_calls == 5:
+                return {"errs": [], "api_error": "timeout after 20 seconds"}
+            return {"errs": [{
+                "start_index": 0, "end_index": 4, "error_text": part[:4],
+                "suggestions": [],
+            }]}
+
+        with (
+            patch("main.call_divvun_grammar", new=AsyncMock(side_effect=grammar)),
+            patch("main.call_divvun_speller", new=AsyncMock(return_value=[])),
+        ):
+            events = [event async for event in main.run_translation_pipeline_events(request)]
+
+        result = events[-1]["data"]
+        self.assertEqual(result["step3_final_text"], text)
+        self.assertTrue(result["divvun_check_incomplete"])
+        self.assertEqual(len(result["final_divvun_errors"]), 2)
+        warning = result["divvun_warnings"][0]["nor"]
+        self.assertIn("del 2 av 3", warning)
+        self.assertIn("røde streker viser bare funn", warning)
+
     async def test_partial_tartu_failure_does_not_mix_source_into_translation(self):
         @asynccontextmanager
         async def borrow():
