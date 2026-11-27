@@ -3,11 +3,17 @@
 Et helhetlig oversettelses-, språkvask- og korrekturverktøy for nordsamisk (*davvisámegiella*), tilpasset Docker (Apple Silicon / Linux) og konfigurert på **port 8090**.
 
 ## Støttede arbeidsmåter
-1. **Norsk → Davvisámegiella:** Oversettelse med TartuNLP, UiT Divvun API og Gemini 4 språkvask.
-2. **Svensk → Davvisámegiella:** Oversettelse fra svensk med TartuNLP (med automatisk direkte-fallback til Gemini 4 ved behov) og Divvun.
-3. **Finsk → Davvisámegiella:** Oversettelse fra finsk med særskilt kontroll mot finske partisipp-/kasuskalker og falske venner.
-4. **Engelsk → Davvisámegiella:** Oversettelse fra engelsk med konvertering til samisk tegnsetting (`”...”`), tallnorm og aktiv verbstil.
-5. **Davvisámegiella → Davvisámegiella (Direkte språkvask & korrektur):** Skånsom, normtro språkvask av nordsamisk tekst som retter ortografi, stadieveksling, rekšuvdna, tegnsetting og substantivsyke uten å viske ut forfatterens stemme.
+1. **Norsk → davvisámegiella:** Oversettelse til nordsamisk.
+2. **Svensk → davvisámegiella:** Oversettelse til nordsamisk.
+3. **Finsk → davvisámegiella:** Oversettelse til nordsamisk.
+4. **Engelsk → davvisámegiella:** Oversettelse til nordsamisk.
+5. **Davvisámegiella → davvisámegiella:** Språkvask og korrektur av eksisterende nordsamisk tekst, uten oversettelse gjennom TartuNLP.
+
+For de fire oversettelsesspråkene forsøker systemet først å hente et utkast fra TartuNLP. Hvis TartuNLP ikke leverer et fullstendig utkast, kan Gemini oversette direkte når Gemini er aktivert og tilgjengelig. Uten Tartu-utkast og Gemini blir det ikke produsert en oversettelse.
+
+Et tilgjengelig nordsamisk utkast eller en opprinnelig nordsamisk tekst kontrolleres først med Divvun. Automatisk bruk av Divvuns forslag i denne første runden kan slås av i innstillingene. Når Gemini er aktivert og tilgjengelig, brukes Giellaverdde-instruksjonene til videre oversettelse eller språkvask; Gemini kan også slå opp språkfaglige referanser ved behov. Resultatet sjekkes til slutt med Divvun og lokale språkregler. Sluttkontrollen foreslår endringer, men retter ikke teksten automatisk.
+
+Gemini kan slås av. Da vises Tartu-utkastet eller den opprinnelige nordsamiske teksten, eventuelt med automatiske rettinger fra den første Divvun-runden. Resultater og forslag bør alltid vurderes av brukeren; hvis en tjeneste ikke fullfører, vises advarsler.
 
 ## Nytt i Gemini 4 Edition
 - **Google GenAI SDK (`google-genai >= 3.2.0`) & Interactions API:** Modellvalget omfatter `gemini-4-hydrogen` (standard), `gemini-4-argon`, `gemini-3.8-flash` og `gemini-3.5-flash-lite`, med valgbar tenkedybde (`low`, `medium`, `high`). Ved utilgjengelig modell eller kvoteproblemer forsøkes Hydrogen, deretter Flash og Flash-Lite, uten å prøve Argon automatisk. Tilgjengelighet, kvoter og priser avhenger av Google og API-prosjektet; sjekk [Googles priser](https://ai.google.dev/gemini-api/docs/pricing). Gemini-forespørsler har en timeout på 10 minutter.
