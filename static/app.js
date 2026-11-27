@@ -1,6 +1,6 @@
 // Jorgaleaddji & Divvun Studio – Client Application
 
-import { UI_STRINGS } from './ui-strings.js?v=4';
+import { UI_STRINGS } from './ui-strings.js?v=5';
 
 const STORAGE_KEYS = {
   apiKey: 'sami_gemini_key',
@@ -115,12 +115,14 @@ let activeAbortController = null;
 let lastFocusedEditor = sourceEl;
 let lastDiffBaselineText = '';
 let currentTargetErrors = [];
+let divvunRequestId = 0;
 let isTargetEditMode = true;
 let lastTips = [];
 let lastImprovements = [];
 let lastImprovementTranslations = {};
 let lastErrors = [];
 let divvunCheckIncomplete = false;
+let divvunCheckStale = false;
 let lastResult = null;
 let lastProgress = null;
 let lastEndProgress = null;
@@ -659,45 +661,42 @@ function updateProgressUI(step, percent, title, detail, state = 'running') {
 // --- Position-Safe Divvun Suggestion Application ---
 function applyDivvunSuggestion(errObj, replacement) {
   const current = targetEl.value;
-  const errWord = errObj.error_text || '';
   const start = errObj.start_index;
   const end = errObj.end_index;
 
-  if (
-    typeof start === 'number' &&
-    typeof end === 'number' &&
-    start >= 0 &&
-    end <= current.length &&
-    (!errWord || current.slice(start, end) === errWord)
-  ) {
-    targetEl.value = current.slice(0, start) + replacement + current.slice(end);
-  } else if (errWord) {
-    // Fallback dersom brukeren har redigert teksten før de trykket på knappen: finn nærmeste treff til start_index
-    const anchor = typeof start === 'number' ? start : 0;
-    let bestIdx = -1;
-    let bestDist = Infinity;
-    let searchFrom = 0;
-    while (searchFrom <= current.length) {
-      const idx = current.indexOf(errWord, searchFrom);
-      if (idx === -1) break;
-      const dist = Math.abs(idx - anchor);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestIdx = idx;
-      }
-      searchFrom = idx + 1;
-    }
-    if (bestIdx !== -1) {
-      targetEl.value =
-        current.slice(0, bestIdx) + replacement + current.slice(bestIdx + errWord.length);
-    }
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 ||
+      end <= start || end > current.length || !errObj.error_text ||
+      current.slice(start, end) !== errObj.error_text) {
+    setStatus('suggestionStale');
+    return;
   }
 
+  targetEl.value = current.slice(0, start) + replacement + current.slice(end);
+  const delta = replacement.length - (end - start);
+  const remaining = lastErrors.flatMap((err) => {
+    if (err.start_index >= end) {
+      return [{ ...err, start_index: err.start_index + delta, end_index: err.end_index + delta }];
+    }
+    return err.end_index <= start ? [err] : [];
+  });
+  divvunCheckStale = true;
+  renderErrors(remaining);
+  renderTargetInteractiveView(targetEl.value, remaining);
   updateCounts();
   if (lastDiffBaselineText) {
     renderDiff(lastDiffBaselineText, targetEl.value);
   }
-  recheckDivvun();
+  recheckDivvun(false);
+}
+
+function divvunOffsetsForBrowser(text, errors) {
+  const offsets = [0];
+  for (const char of text) offsets.push(offsets[offsets.length - 1] + char.length);
+  return errors.map((err) => ({
+    ...err,
+    start_index: offsets[err.start_index],
+    end_index: offsets[err.end_index],
+  }));
 }
 
 // --- XSS-Safe Rendering of Errors, Tips & Word-Level Diff ---
@@ -710,15 +709,15 @@ function renderErrors(errs) {
   box.replaceChildren();
 
   badgeCount.classList.remove('is-emerald', 'is-amber');
-  if (divvunCheckIncomplete) {
+  if (divvunCheckIncomplete || divvunCheckStale) {
     const warning = document.createElement('div');
     warning.className = 'note-card is-divvun';
-    warning.textContent = tr('checkIncomplete');
+    warning.textContent = tr(divvunCheckStale ? 'recheckNeeded' : 'checkIncomplete');
     box.appendChild(warning);
   }
   if (list.length === 0) {
-    badgeCount.classList.add(divvunCheckIncomplete ? 'is-amber' : 'is-emerald');
-    if (divvunCheckIncomplete) return;
+    badgeCount.classList.add(divvunCheckIncomplete || divvunCheckStale ? 'is-amber' : 'is-emerald');
+    if (divvunCheckIncomplete || divvunCheckStale) return;
     const okEl = document.createElement('div');
     okEl.className = 'note-card is-ok';
     okEl.textContent = tr('noErrors');
@@ -1125,7 +1124,9 @@ function displayFinalData(data) {
     headerModelBadge.classList.add('is-ready');
   }
 
-  const finalErrs = data.final_divvun_errors || [];
+  const finalErrs = divvunOffsetsForBrowser(finalOut, data.final_divvun_errors || []);
+  divvunRequestId++;
+  divvunCheckStale = false;
   divvunCheckIncomplete = Boolean(data.divvun_check_incomplete);
   renderErrors(finalErrs);
   renderTargetInteractiveView(finalOut, finalErrs);
@@ -1152,6 +1153,7 @@ function cancelTranslation() {
 async function runPipeline() {
   const text = sourceEl.value.trim();
   if (!text || activeAbortController) return;
+  divvunRequestId++;
   lastProgress = null;
   lastEndProgress = null;
 
@@ -1287,9 +1289,10 @@ async function runPipeline() {
   }
 }
 
-async function recheckDivvun() {
-  const text = targetEl.value.trim();
-  if (!text) return;
+async function recheckDivvun(showTab = true) {
+  const text = targetEl.value;
+  if (!text.trim()) return;
+  const requestId = ++divvunRequestId;
   setStatus('checkingDivvun');
   try {
     const resp = await fetch('/api/proofread', {
@@ -1297,9 +1300,11 @@ async function recheckDivvun() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, source_lang: currentSourceLang }),
     });
+    if (requestId !== divvunRequestId || targetEl.value !== text) return;
     if (!resp.ok) {
       if (resp.status === 422) {
         const body = await resp.json();
+        if (requestId !== divvunRequestId || targetEl.value !== text) return;
         const tooLong = Array.isArray(body.detail) && body.detail.some(
           (error) => error.type === 'string_too_long' && error.loc?.includes('text')
         );
@@ -1309,8 +1314,10 @@ async function recheckDivvun() {
       throw new Error(`HTTP ${resp.status}`);
     }
     const data = await resp.json();
+    if (requestId !== divvunRequestId || targetEl.value !== text) return;
     document.getElementById('pipelineDetails').hidden = false;
-    const errs = data.errs || [];
+    const errs = divvunOffsetsForBrowser(text, data.errs || []);
+    divvunCheckStale = false;
     divvunCheckIncomplete = Boolean(data.divvun_check_incomplete);
     renderErrors(errs);
     renderTargetInteractiveView(targetEl.value, errs);
@@ -1319,14 +1326,14 @@ async function recheckDivvun() {
     if (lastDiffBaselineText) {
       renderDiff(lastDiffBaselineText, targetEl.value);
     }
-    switchTab('divvun');
+    if (showTab) switchTab('divvun');
     if (divvunCheckIncomplete) {
       setStatus('checkIncomplete');
     } else {
       setStatus('divvunDone', { count: (data.errs || []).length });
     }
   } catch {
-    setStatus('divvunError');
+    if (requestId === divvunRequestId && targetEl.value === text) setStatus('divvunError');
   }
 }
 
@@ -1400,6 +1407,13 @@ function initApp() {
 
   sourceEl.addEventListener('input', updateCounts);
   targetEl.addEventListener('input', () => {
+    divvunRequestId++;
+    if (!document.getElementById('pipelineDetails').hidden) {
+      divvunCheckStale = true;
+      renderErrors([]);
+      renderTargetInteractiveView(targetEl.value, []);
+      setStatus('recheckNeeded');
+    }
     updateCounts();
     if (lastDiffBaselineText) {
       renderDiff(lastDiffBaselineText, targetEl.value);
@@ -1431,7 +1445,7 @@ function initApp() {
   document.getElementById('exampleBtn').addEventListener('click', loadExample);
   clearBtn.addEventListener('click', clearSource);
   document.getElementById('translateBtn').addEventListener('click', runPipeline);
-  document.getElementById('recheckDivvunBtn').addEventListener('click', recheckDivvun);
+  document.getElementById('recheckDivvunBtn').addEventListener('click', () => recheckDivvun());
   toggleTargetViewBtn.addEventListener('click', () => setTargetViewMode(!isTargetEditMode));
   targetInteractiveEl.addEventListener('dblclick', (event) => {
     if (!event.target.closest('.spell-mark')) {

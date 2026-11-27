@@ -66,6 +66,12 @@ docker compose exec sami-translator pytest
 pytest
 ```
 
+For JavaScript-testene lokalt kreves Node.js:
+
+```bash
+node --test test_suggestions.cjs
+```
+
 ## Eksterne tjenester og kreditering
 
 Takk til utviklerne og språkfagmiljøene bak tjenestene og ressursene prosjektet bruker:

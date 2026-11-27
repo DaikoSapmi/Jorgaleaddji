@@ -1,5 +1,7 @@
 export const UI_STRINGS = {
   "nor": {
+    "suggestionStale": "Teksten er endret. Sjekk med Divvun på nytt før du velger et forslag.",
+    "recheckNeeded": "Teksten er endret. Sjekk med Divvun på nytt for oppdaterte merknader.",
     "reloadPage": "Last siden på nytt",
     "credits": "Tjenester og kreditering",
     "creditTartu": "maskinoversettelse.",
@@ -126,6 +128,8 @@ export const UI_STRINGS = {
     "guide6": "Bruk liten forbokstav på stillinger (direktevra, stáhtaministtar), språk, nasjonaliteter og epoker. Fremmedord på -iija har ikke stadieveksling. Stedsnavn ender ikke på -iija (Tansania)."
   },
   "swe": {
+    "suggestionStale": "Texten har ändrats. Kontrollera med Divvun igen innan du väljer ett förslag.",
+    "recheckNeeded": "Texten har ändrats. Kontrollera med Divvun igen för uppdaterade anmärkningar.",
     "reloadPage": "Ladda om sidan",
     "credits": "Tjänster och erkännanden",
     "creditTartu": "maskinöversättning.",
@@ -252,6 +256,8 @@ export const UI_STRINGS = {
     "guide6": "Använd liten begynnelsebokstav för yrken (direktevra, stáhtaministtar), språk, nationaliteter och epoker. Främmande ord på -iija har ingen stadieväxling. Ortnamn slutar inte på -iija (Tansania)."
   },
   "fin": {
+    "suggestionStale": "Teksti on muuttunut. Tarkista se Divvunilla uudelleen ennen ehdotuksen valitsemista.",
+    "recheckNeeded": "Teksti on muuttunut. Tarkista se Divvunilla uudelleen saadaksesi ajantasaiset huomiot.",
     "reloadPage": "Lataa sivu uudelleen",
     "credits": "Palvelut ja tekijät",
     "creditTartu": "konekäännös.",
@@ -378,6 +384,8 @@ export const UI_STRINGS = {
     "guide6": "Kirjoita tehtävänimikkeet (direktevra, stáhtaministtar), kielet, kansallisuudet ja aikakaudet pienellä alkukirjaimella. -iija-loppuisissa lainasanoissa ei ole astevaihtelua. Paikannimet eivät pääty -iija (Tansania)."
   },
   "eng": {
+    "suggestionStale": "The text has changed. Check with Divvun again before choosing a suggestion.",
+    "recheckNeeded": "The text has changed. Check with Divvun again for updated notes.",
     "reloadPage": "Reload the page",
     "credits": "Services and credits",
     "creditTartu": "machine translation.",
@@ -504,6 +512,8 @@ export const UI_STRINGS = {
     "guide6": "Use lowercase for job titles (direktevra, stáhtaministtar), languages, nationalities and eras. Loanwords ending in -iija do not undergo consonant gradation. Place names do not end in -iija (Tansania)."
   },
   "sme": {
+    "suggestionStale": "Teaksta lea rievdan. Dárkkis Divvuniin ođđasit ovdal go válljet evttohusa.",
+    "recheckNeeded": "Teaksta lea rievdan. Dárkkis Divvuniin ođđasit oažžut dihtojuvvon merkašumiid.",
     "reloadPage": "Viečča siiddu ođđasit",
     "credits": "Bálvalusat ja gáldut",
     "creditTartu": "mašiidnajorgaleapmi.",
