@@ -12,7 +12,10 @@ COPY main.py test_main.py ./
 COPY static ./static
 COPY .agent ./.agent
 
-RUN useradd --create-home --shell /bin/bash appuser && chown -R appuser:appuser /app
+RUN useradd --create-home --shell /bin/bash appuser \
+    && mkdir -p /app/logs \
+    && chown -R appuser:appuser /app \
+    && chmod 700 /app/logs
 USER appuser
 
 EXPOSE 8090

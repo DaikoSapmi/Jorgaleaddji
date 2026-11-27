@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import tempfile
 import types
 import unittest
 from contextlib import asynccontextmanager
@@ -8,9 +9,41 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import main
+from fastapi.testclient import TestClient
 
 
 class TestJorgaleaddjiCore(unittest.TestCase):
+    def test_stream_lifespan_writes_diagnostic_log(self):
+        async def handler(request):
+            if "/grammar/" in str(request.url):
+                raise httpx.ReadTimeout("private-service-detail", request=request)
+            return httpx.Response(200, json={"results": []}, request=request)
+
+        @asynccontextmanager
+        async def borrow():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                yield client
+
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                patch.dict(os.environ, {"JORGALEADDJI_LOG_DIR": directory}),
+                patch("main.borrow_http_client", borrow),
+                TestClient(main.app) as client,
+            ):
+                response = client.post("/api/translate-stream", json={
+                    "text": "private text", "source_lang": "sme", "use_llm": False,
+                })
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(json.loads(response.text.splitlines()[-1])["type"], "result")
+            with open(os.path.join(directory, "diagnostics.log"), encoding="utf-8") as log:
+                lines = [json.loads(line.split(" ", 2)[2]) for line in log]
+        self.assertEqual(len({entry["request_id"] for entry in lines}), 1)
+        errors = [entry for entry in lines if entry["event"] == "divvun_grammar_error"]
+        self.assertEqual({entry["stage"] for entry in errors}, {"initial", "final"})
+        self.assertTrue(all(entry["category"] == "timeout" and entry["part"] == 1 for entry in errors))
+        self.assertEqual(lines[-1]["outcome"], "completed")
+        self.assertNotIn("private", json.dumps(lines))
+
     def test_long_text_splitting_preserves_every_character(self):
         samples = [
             ("Oassi sámegillii.\n\n" * 800) + "Loahppa.",
@@ -430,7 +463,39 @@ class TestAsyncPipeline(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result["final_divvun_errors"]), 2)
         warning = result["divvun_warnings"][0]["nor"]
         self.assertIn("del 2 av 3", warning)
-        self.assertIn("røde streker viser bare funn", warning)
+        self.assertIn("stavekontrollen kjøres separat", warning)
+
+    async def test_persistent_diagnostics_omit_text_and_secrets(self):
+        private_text = "private-example-text"
+        private_key = "private-example-key"
+        req = main.TranslateRequest(
+            text=private_text, api_key=private_key, source_lang="sme", use_llm=False,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.dict(os.environ, {"JORGALEADDJI_LOG_DIR": directory}):
+                handler = main.configure_diagnostic_file()
+            try:
+                with (
+                    patch("main.call_divvun_grammar", new=AsyncMock(
+                        return_value={"errs": [], "api_error": private_text + private_key}
+                    )),
+                    patch("main.call_divvun_speller", new=AsyncMock(return_value=[])),
+                ):
+                    response = await main.translate_pipeline_stream(req)
+                    events = [json.loads(chunk) async for chunk in response.body_iterator]
+                self.assertEqual(events[-1]["type"], "result")
+                handler.flush()
+                with open(os.path.join(directory, "diagnostics.log"), encoding="utf-8") as log:
+                    contents = log.read()
+                self.assertNotIn(private_text, contents)
+                self.assertNotIn(private_key, contents)
+                self.assertIn('"event": "start"', contents)
+                self.assertIn('"event": "divvun_grammar_part_incomplete"', contents)
+                self.assertIn('"divvun_incomplete": true', contents)
+                self.assertIn('"outcome": "completed"', contents)
+            finally:
+                main.diagnostic_logger.removeHandler(handler)
+                handler.close()
 
     async def test_partial_tartu_failure_does_not_mix_source_into_translation(self):
         @asynccontextmanager

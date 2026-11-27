@@ -123,7 +123,6 @@ let lastImprovementTranslations = {};
 let lastErrors = [];
 let divvunCheckIncomplete = false;
 let divvunCheckStale = false;
-let lastDivvunWarnings = [];
 let lastResult = null;
 let lastProgress = null;
 let lastEndProgress = null;
@@ -628,6 +627,16 @@ async function loadAvailableModels() {
 }
 
 // --- Progress UI ---
+function resultProgress(data, seconds) {
+  if (data.result_incomplete) {
+    return { step: 4, percent: 100, title: 'resultIncomplete', detailKey: 'resultIncomplete', state: 'error' };
+  }
+  return {
+    step: 4, percent: 100, title: 'doneIn', params: { seconds },
+    detailKey: data.divvun_check_incomplete ? 'checkIncomplete' : 'allDone', state: 'done',
+  };
+}
+
 function updateProgressUI(step, percent, title, detail, state = 'running') {
   const container = document.getElementById('progressContainer');
   const bar = document.getElementById('progressBar');
@@ -701,9 +710,8 @@ function divvunOffsetsForBrowser(text, errors) {
 }
 
 // --- XSS-Safe Rendering of Errors, Tips & Word-Level Diff ---
-function renderErrors(errs, warnings = lastDivvunWarnings) {
+function renderErrors(errs) {
   lastErrors = Array.isArray(errs) ? errs : [];
-  lastDivvunWarnings = Array.isArray(warnings) ? warnings : [];
   const box = document.getElementById('divvunErrorsBox');
   const badgeCount = document.getElementById('badgeDivvunCount');
   const list = Array.isArray(errs) ? errs : [];
@@ -713,18 +721,13 @@ function renderErrors(errs, warnings = lastDivvunWarnings) {
   badgeCount.classList.remove('is-emerald', 'is-amber');
   if (divvunCheckIncomplete || divvunCheckStale) {
     const warning = document.createElement('div');
-    warning.className = 'note-card is-divvun';
+    warning.className = 'note-card is-improvement';
     warning.textContent = tr(divvunCheckStale ? 'recheckNeeded' : 'checkIncomplete');
     box.appendChild(warning);
   }
-  for (const warning of lastDivvunWarnings) {
-    const note = document.createElement('div');
-    note.className = 'note-card is-divvun';
-    note.textContent = warning?.[currentSourceLang] || warning;
-    box.appendChild(note);
-  }
   if (list.length === 0) {
-    badgeCount.classList.add(divvunCheckIncomplete || divvunCheckStale ? 'is-amber' : 'is-emerald');
+    if (divvunCheckStale) badgeCount.classList.add('is-amber');
+    else if (!divvunCheckIncomplete) badgeCount.classList.add('is-emerald');
     if (divvunCheckIncomplete || divvunCheckStale) return;
     const okEl = document.createElement('div');
     okEl.className = 'note-card is-ok';
@@ -1136,12 +1139,14 @@ function displayFinalData(data) {
   divvunRequestId++;
   divvunCheckStale = false;
   divvunCheckIncomplete = Boolean(data.divvun_check_incomplete);
-  renderErrors(finalErrs, data.divvun_warnings || []);
+  renderErrors(finalErrs);
   renderTargetInteractiveView(finalOut, finalErrs);
   renderTips(data.step3_improvements || [], data.language_tips || []);
 
-  if (data.result_incomplete || data.divvun_check_incomplete) {
+  if (data.result_incomplete) {
     setStatus('resultIncomplete');
+  } else if (data.divvun_check_incomplete) {
+    setStatus('checkIncomplete');
   } else if (data.llm_active) {
     setStatus('finishedWith', { model: data.used_model });
   } else {
@@ -1251,10 +1256,7 @@ async function runPipeline() {
         lastProgress = null;
         receivedResult = true;
         const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
-        const incomplete = msg.data.result_incomplete || msg.data.divvun_check_incomplete;
-        lastEndProgress = incomplete
-          ? { step: 4, percent: 100, title: 'resultIncomplete', detailKey: 'resultIncomplete', state: 'error' }
-          : { step: 4, percent: 100, title: 'doneIn', params: { seconds: totalSec }, detailKey: 'allDone', state: 'done' };
+        lastEndProgress = resultProgress(msg.data, totalSec);
         updateProgressUI(4, 100, tr(lastEndProgress.title, lastEndProgress.params), tr(lastEndProgress.detailKey), lastEndProgress.state);
         displayFinalData(msg.data);
       } else if (msg.type === 'error') {
@@ -1327,7 +1329,7 @@ async function recheckDivvun(showTab = true) {
     const errs = divvunOffsetsForBrowser(text, data.errs || []);
     divvunCheckStale = false;
     divvunCheckIncomplete = Boolean(data.divvun_check_incomplete);
-    renderErrors(errs, data.divvun_warnings || []);
+    renderErrors(errs);
     renderTargetInteractiveView(targetEl.value, errs);
     lastImprovementTranslations = data.improvement_translations || {};
     renderTips(data.warnings || [], data.language_tips || []);

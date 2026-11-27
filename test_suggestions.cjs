@@ -77,3 +77,17 @@ test('old check responses cannot overwrite later corrections', async () => {
   assert.equal(context.status, 'divvunError');
   assert.equal(vm.runInContext('divvunCheckStale', context), true);
 });
+
+test('partial Divvun checks do not mark a completed translation as failed', () => {
+  const { context } = setup();
+  const partial = vm.runInContext(
+    "resultProgress({result_incomplete: false, divvun_check_incomplete: true}, '12.3')", context
+  );
+  assert.equal(partial.state, 'done');
+  assert.equal(partial.detailKey, 'checkIncomplete');
+  const incomplete = vm.runInContext(
+    "resultProgress({result_incomplete: true, divvun_check_incomplete: true}, '12.3')", context
+  );
+  assert.equal(incomplete.state, 'error');
+  assert.equal(incomplete.detailKey, 'resultIncomplete');
+});

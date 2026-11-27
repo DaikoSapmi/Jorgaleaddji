@@ -7,7 +7,13 @@ services:
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-4-hydrogen}
+      - JORGALEADDJI_LOG_DIR=/app/logs
     env_file:
       - path: .env
         required: false
     restart: unless-stopped
+    volumes:
+      - diagnostic-logs:/app/logs
+
+volumes:
+  diagnostic-logs:

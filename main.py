@@ -1,9 +1,13 @@
 import asyncio
+import contextvars
 import json
 import logging
 import os
 import re
+import time
+import uuid
 from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
 from typing import Annotated, AsyncGenerator, Dict, List, Literal, Optional, Tuple
 
 import httpx
@@ -18,6 +22,53 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("jorgaleaddji")
+diagnostic_logger = logging.getLogger("jorgaleaddji.diagnostics")
+diagnostic_logger.setLevel(logging.INFO)
+diagnostic_request_id = contextvars.ContextVar("diagnostic_request_id", default=None)
+diagnostic_grammar_part = contextvars.ContextVar("diagnostic_grammar_part", default=None)
+
+
+def diagnostic_event(event: str, **fields) -> None:
+    request_id = diagnostic_request_id.get()
+    if request_id:
+        part = diagnostic_grammar_part.get() or {}
+        diagnostic_logger.info(json.dumps(
+            {"request_id": request_id, "event": event, **part, **fields}, ensure_ascii=True
+        ))
+
+
+@asynccontextmanager
+async def diagnostic_operation(operation: str, text_length: int, source_lang: str):
+    token = diagnostic_request_id.set(uuid.uuid4().hex)
+    started = time.monotonic()
+    diagnostic_event("start", operation=operation, text_length=text_length, source_lang=source_lang)
+    outcome = "completed"
+    try:
+        yield
+    except asyncio.CancelledError:
+        outcome = "cancelled"
+        raise
+    except Exception as exc:
+        outcome = "error"
+        diagnostic_event("exception", error_type=type(exc).__name__)
+        raise
+    finally:
+        diagnostic_event("end", outcome=outcome, duration_ms=round((time.monotonic() - started) * 1000))
+        diagnostic_request_id.reset(token)
+
+
+def configure_diagnostic_file() -> Optional[RotatingFileHandler]:
+    log_dir = os.getenv("JORGALEADDJI_LOG_DIR", "").strip()
+    if not log_dir:
+        return None
+    os.makedirs(log_dir, mode=0o700, exist_ok=True)
+    handler = RotatingFileHandler(
+        os.path.join(log_dir, "diagnostics.log"),
+        maxBytes=5 * 1024 * 1024, backupCount=4, encoding="utf-8",
+    )
+    handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    diagnostic_logger.addHandler(handler)
+    return handler
 
 TARTU_API_URL = "https://api.tartunlp.ai/translation/v2"
 DIVVUN_GRAMMAR_URL = "https://api-giellalt.uit.no/grammar/se"
@@ -399,11 +450,17 @@ class ProofreadRequest(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
+    handler = configure_diagnostic_file()
     timeout = httpx.Timeout(45.0, connect=10.0)
     limits = httpx.Limits(max_connections=20, max_keepalive_connections=10)
-    async with httpx.AsyncClient(timeout=timeout, limits=limits) as http_client:
-        app_instance.state.http_client = http_client
-        yield
+    try:
+        async with httpx.AsyncClient(timeout=timeout, limits=limits) as http_client:
+            app_instance.state.http_client = http_client
+            yield
+    finally:
+        if handler:
+            diagnostic_logger.removeHandler(handler)
+            handler.close()
 
 
 app = FastAPI(
@@ -582,10 +639,13 @@ async def _tartu_translate_chunk(
                 result = data.get("result")
                 if isinstance(result, str) and result.strip():
                     return result, False
-            elif resp.status_code in (400, 404, 422):
-                saw_bad_pair = True
+            else:
+                diagnostic_event("tartu_error", category="http", status=resp.status_code)
+                if resp.status_code in (400, 404, 422):
+                    saw_bad_pair = True
         except Exception as exc:
             logger.warning("TartuNLP feil for src=%s: %s", src_code, exc)
+            diagnostic_event("tartu_error", category=type(exc).__name__)
             continue
     return None, saw_bad_pair
 
@@ -666,13 +726,16 @@ async def call_divvun_grammar(text: str) -> dict:
             if resp.status_code == 200:
                 return resp.json()
             logger.warning("Divvun API svarte med HTTP %s", resp.status_code)
+            diagnostic_event("divvun_grammar_error", category="http", status=resp.status_code)
             return {"text": text, "errs": [], "api_error": f"HTTP {resp.status_code}"}
         except httpx.TimeoutException:
             error = f"timeout etter {DIVVUN_GRAMMAR_REQUEST_TIMEOUT:g} sekunder"
             logger.warning("Divvun API timeout: %s", error)
+            diagnostic_event("divvun_grammar_error", category="timeout")
             return {"text": text, "errs": [], "api_error": error}
         except Exception as exc:
             logger.warning("Divvun API nettverksfeil: %s", exc)
+            diagnostic_event("divvun_grammar_error", category=type(exc).__name__)
             return {
                 "text": text,
                 "errs": [],
@@ -712,10 +775,12 @@ async def call_divvun_speller(text: str) -> List[dict]:
             )
             if resp.status_code != 200:
                 logger.warning("Divvun Speller API svarte med HTTP %s", resp.status_code)
+                diagnostic_event("divvun_speller_error", category="http", status=resp.status_code)
                 raise DivvunSpellerError(f"HTTP {resp.status_code}")
             data = resp.json()
         except (httpx.HTTPError, ValueError) as exc:
             logger.warning("Divvun Speller API nettverksfeil: %s", exc)
+            diagnostic_event("divvun_speller_error", category=type(exc).__name__)
             raise DivvunSpellerError(str(exc) or type(exc).__name__) from exc
 
     results = data.get("results") or []
@@ -1318,6 +1383,7 @@ async def call_gemini_refiner(
                 break
             except Exception as exc:
                 status_code, should_fallback = _classify_gemini_exception(exc)
+                diagnostic_event("gemini_error", status=status_code, error_type=type(exc).__name__)
                 safe_err = sanitize_error_message(str(exc) or type(exc).__name__, active_key)
                 last_error_msg = f"{candidate_model}: {safe_err}"
                 logger.warning("Gemini API feil (%s): %s", status_code, last_error_msg)
@@ -1386,7 +1452,7 @@ async def _run_single_pipeline_events(
     )
 
     if tartu_raw is not None:
-        divvun_initial = await call_divvun_grammar_chunked(tartu_raw)
+        divvun_initial = await call_divvun_grammar_chunked(tartu_raw, stage="initial")
         initial_errs = divvun_initial.get("errs", [])
         divvun_pre_corrected: Optional[str] = (
             apply_divvun_suggestions(
@@ -1455,7 +1521,7 @@ async def _run_single_pipeline_events(
 
     final_text = gemini_text
     final_divvun = (
-        await call_divvun_grammar_chunked(final_text)
+        await call_divvun_grammar_chunked(final_text, stage="final")
         if final_text.strip() else {"errs": [], "api_errors": []}
     )
     final_errs = final_divvun.get("errs", [])
@@ -1478,20 +1544,20 @@ async def _run_single_pipeline_events(
             divvun_warnings.append(add_divvun_chunk_notice(
                 llm_result, src_lang, "divvun_initial_chunk_error",
                 current=failure["current"], total=failure["total"],
-                context=divvun_chunk_context(pipeline_chunk, src_lang),
+                context=pipeline_chunk,
                 error=failure["error"],
             ))
     for failure in final_divvun.get("api_errors", []):
         divvun_warnings.append(add_divvun_chunk_notice(
             llm_result, src_lang, "divvun_grammar_chunk_error",
             current=failure["current"], total=failure["total"],
-            context=divvun_chunk_context(context, src_lang),
+            context=context,
             error=failure["error"],
         ))
     if speller_error:
         divvun_warnings.append(add_divvun_chunk_notice(
             llm_result, src_lang, "divvun_speller_error",
-            current=1, total=1, context=divvun_chunk_context(context, src_lang),
+            current=1, total=1, context=context,
             error=speller_error,
         ))
 
@@ -1532,6 +1598,16 @@ async def _run_single_pipeline_events(
         "divvun_warnings": divvun_warnings,
         "language_tips": combined_tips,
     }
+    diagnostic_event(
+        "pipeline_part",
+        part=pipeline_chunk[0] if pipeline_chunk else 1,
+        total=pipeline_chunk[1] if pipeline_chunk else 1,
+        tartu_available=tartu_raw is not None if not is_sami_source else None,
+        gemini_requested=req.use_llm,
+        gemini_active=llm_succeeded,
+        result_incomplete=result_payload["result_incomplete"],
+        divvun_incomplete=result_payload["divvun_check_incomplete"],
+    )
 
     yield {
         "type": "result",
@@ -1584,12 +1660,13 @@ def add_divvun_chunk_notice(
     *,
     current: int,
     total: int,
-    context: str,
+    context: Optional[Tuple[int, int]],
     error: str,
 ) -> Dict[str, str]:
     variants = {
         language: ui_message(
-            language, key, current=current, total=total, context=context, error=error
+            language, key, current=current, total=total,
+            context=divvun_chunk_context(context, language), error=error
         )
         for language in UI_LANGUAGES
     }
@@ -1600,14 +1677,18 @@ def add_divvun_chunk_notice(
     return variants
 
 
-async def call_divvun_grammar_chunked(text: str) -> dict:
+async def call_divvun_grammar_chunked(text: str, stage: str = "proofread") -> dict:
     """Kontrollerer grammatikk i korte biter og bevarer treff og feil per bit."""
     parts = split_pipeline_text(text, limit=DIVVUN_GRAMMAR_CHUNK_SIZE)
     semaphore = asyncio.Semaphore(DIVVUN_GRAMMAR_CONCURRENCY)
 
     async def check_part(index: int, part: str) -> dict:
         async with semaphore:
-            response = await call_divvun_grammar(part)
+            token = diagnostic_grammar_part.set({"stage": stage, "part": index + 1, "total": len(parts)})
+            try:
+                response = await call_divvun_grammar(part)
+            finally:
+                diagnostic_grammar_part.reset(token)
         return {"index": index, **response}
 
     results = await asyncio.gather(
@@ -1625,6 +1706,8 @@ async def call_divvun_grammar_chunked(text: str) -> dict:
                 adjusted["end_index"] += offset
             errors.append(adjusted)
         if response.get("api_error"):
+            diagnostic_event("divvun_grammar_part_incomplete", stage=stage,
+                             part=response["index"] + 1, total=len(parts))
             api_errors.append({
                 "current": response["index"] + 1,
                 "total": len(parts),
@@ -1747,14 +1830,15 @@ async def translate_pipeline(
     if not req.text.strip():
         raise HTTPException(status_code=400, detail=ui_message(req.source_lang, "empty_text"))
 
-    final_data = None
-    async for event in run_translation_pipeline_events(req, header_api_key=x_gemini_api_key):
-        if event.get("type") == "result":
-            final_data = event["data"]
+    async with diagnostic_operation("translate", len(req.text), req.source_lang):
+        final_data = None
+        async for event in run_translation_pipeline_events(req, header_api_key=x_gemini_api_key):
+            if event.get("type") == "result":
+                final_data = event["data"]
 
-    if final_data is None:
-        raise HTTPException(status_code=500, detail=ui_message(req.source_lang, "no_result"))
-    return final_data
+        if final_data is None:
+            raise HTTPException(status_code=500, detail=ui_message(req.source_lang, "no_result"))
+        return final_data
 
 
 @app.post("/api/translate-stream")
@@ -1771,8 +1855,9 @@ async def translate_pipeline_stream(
 
     async def event_generator() -> AsyncGenerator[str, None]:
         try:
-            async for event in run_translation_pipeline_events(req, header_api_key=x_gemini_api_key):
-                yield json.dumps(event, ensure_ascii=False) + "\n"
+            async with diagnostic_operation("translate-stream", len(req.text), req.source_lang):
+                async for event in run_translation_pipeline_events(req, header_api_key=x_gemini_api_key):
+                    yield json.dumps(event, ensure_ascii=False) + "\n"
         except asyncio.CancelledError:
             logger.info("Klienten avbrøt oversettelsesstrømmen.")
             raise
@@ -1789,13 +1874,18 @@ async def proofread_only(req: ProofreadRequest):
     """Lar brukeren kjøre ren Divvun-korrektur + Speller (/speller/se) + språksjekk når de redigerer den samiske teksten manuelt."""
     if not req.text.strip():
         raise HTTPException(status_code=400, detail=ui_message(req.source_lang, "empty_text"))
-    grammar_result = await call_divvun_grammar_chunked(req.text)
+    async with diagnostic_operation("proofread", len(req.text), req.source_lang):
+        return await run_proofread(req)
+
+
+async def run_proofread(req: ProofreadRequest):
+    grammar_result = await call_divvun_grammar_chunked(req.text, stage="proofread")
     warnings: dict = {}
     divvun_warnings: List[Dict[str, str]] = []
     for failure in grammar_result.get("api_errors", []):
         divvun_warnings.append(add_divvun_chunk_notice(
             warnings, req.source_lang, "divvun_grammar_chunk_error",
-            current=failure["current"], total=failure["total"], context="", error=failure["error"],
+            current=failure["current"], total=failure["total"], context=None, error=failure["error"],
         ))
 
     speller_errs: List[dict] = []
@@ -1808,7 +1898,7 @@ async def proofread_only(req: ProofreadRequest):
             part_errors = []
             divvun_warnings.append(add_divvun_chunk_notice(
                 warnings, req.source_lang, "divvun_speller_chunk_error",
-                current=index + 1, total=len(speller_parts), context="", error=str(exc),
+                current=index + 1, total=len(speller_parts), context=None, error=str(exc),
             ))
         localize_speller_errors(part_errors, req.source_lang)
         for error in part_errors:
@@ -1822,6 +1912,8 @@ async def proofread_only(req: ProofreadRequest):
 
     merged_errs = merge_divvun_errors(grammar_result.get("errs", []), speller_errs)
     tips = local_heuristic_checks("", req.text, req.source_lang)
+    diagnostic_event("proofread_result", divvun_incomplete=bool(divvun_warnings),
+                     warning_count=len(divvun_warnings))
     return {
         "text": req.text,
         "errs": merged_errs,

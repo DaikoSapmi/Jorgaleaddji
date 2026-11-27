@@ -20,7 +20,7 @@ Gemini kan slås av. Da vises Tartu-utkastet eller den opprinnelige nordsamiske 
 - **Egen ordliste / terminologi & hurtigoppslag i Sátni.org:** Legg inn faste fagtermer (`kildeord = samisk term`) og slå opp markerte ord direkte i Giellagáldus termbase på [Sátni.org](https://satni.org).
 - **Endringsvisning (Diff) & samisk spesialtegn-rad:** Se nøyaktig hvilke ord som ble endret i språkvasken, og sett raskt inn `Á á Č č Đ đ Ŋ ŋ Š š Ŧ ŧ Ž ž ” –`.
 - **Ikke-påtrengende sluttkontroll:** Etter Gemini markerer Divvun grammatikk- og staveforslag for vurdering. Sluttkontrollen endrer ikke teksten automatisk; forslag brukes bare når brukeren klikker på dem. Innstillingen for automatisk Divvun-retting gjelder første runde før Gemini.
-- **Lange tekster:** Tekster på opptil 50 000 tegn deles automatisk opp ved linjeskift eller mellomrom før behandling og settes sammen igjen. Divvuns grammatikkontroll deles videre i biter på opptil 1 200 tegn (inntil fire samtidige kall). En feil i én bit stopper ikke de andre kontrollene eller resten av pipelinen; Divvun-panelet viser hvilke deler som feilet, og røde streker viser bare funn fra deler som svarte. Fremdriften viser hvilken tekst-del som behandles. Hvis Gemini eller Divvun ikke fullfører, vises advarsel og feildetaljer; kontroller resultatet før bruk.
+- **Lange tekster:** Tekster på opptil 50 000 tegn deles automatisk opp ved linjeskift eller mellomrom før behandling og settes sammen igjen. Divvuns grammatikkontroll deles videre i biter på opptil 1 200 tegn (inntil fire samtidige kall per kontroll). En feil i én bit stopper ikke de andre kontrollene eller resten av pipelinen. «Språkvask & råd» viser hva som ikke ble kontrollert; stavekontrollen kjøres separat. Markeringene viser bare tilgjengelige funn. Fremdriften viser hvilken tekstdel som behandles.
 - **Raskt webgrensesnitt:** Ingen ekstern JS-kompilering ved oppstart, tastatur- og skjermleserstøtte, avbryt-knapp (`AbortController`) og nøkkelhåndtering via HTTP-headere. Enkelte nettlesere kan laste polyfills fra eksterne CDN-er; se krediteringene nederst.
 - **Språkvalg:** Grensesnitt, fremdrift og lokale språkråd følger valgt kildespråk (norsk, svensk, finsk, engelsk eller nordsamisk). Gemini-genererte råd og merknader fra eksterne tjenester kan foreløpig ha et annet språk.
 
@@ -57,6 +57,18 @@ docker compose up -d --build
 Åpne deretter `http://localhost:8090` i nettleseren.
 
 I Innstillinger finnes en veiledning ved Gemini API-nøkkelfeltet. En nøkkel som legges inn der, lagres i nettleseren; tøm feltet og klikk utenfor for å fjerne den fra nettleseren.
+
+### Feilsøking og logger
+
+Docker Compose lagrer tekniske hendelser i det vedvarende volumet `diagnostic-logs`. Se den løpende loggen med:
+
+```bash
+docker compose exec sami-translator tail -f /app/logs/diagnostics.log
+```
+
+Loggen har tidsstempel og tilfeldig forespørsels-ID, samt blant annet tekstlengde, språk, tjenestestatus, feiltyper, delnummer og varighet. Den lagrer ikke tekst, ordliste, API-nøkler, IP-adresser eller feiltekster fra tjenestene. Filen roteres ved 5 MB; opptil fire eldre filer beholdes. Volumet beholdes ved vanlig omstart og gjenoppbygging. Beskytt likevel tilgang til loggene og slett dem etter behov. `docker compose down -v` sletter volumet.
+
+Ved kjøring uten Compose kan fil-logg aktiveres ved å sette miljøvariabelen `JORGALEADDJI_LOG_DIR` til en skrivbar mappe med begrenset tilgang. Den vanlige konsollloggen vises fortsatt med `docker compose logs -f sami-translator` og kan inneholde mer detaljerte feilmeldinger fra tjenestene.
 
 ## Kjøre tester
 
