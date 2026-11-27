@@ -5,7 +5,7 @@ Et helhetlig oversettelses-, språkvask- og korrekturverktøy for nordsamisk (*d
 ## Støttede arbeidsmåter
 1. **Norsk → Davvisámegiella:** Oversettelse med TartuNLP, UiT Divvun API og Gemini 4 språkvask.
 2. **Svensk → Davvisámegiella:** Oversettelse fra svensk med TartuNLP (med automatisk direkte-fallback til Gemini 4 ved behov) og Divvun.
-3. **Finsk → Davvisámegiella:** Oversettelse fra finsk med særskilt kontroll mot finske partisipp-/kasuskalker og falske venner.
+3. **Finsk → Davvisámegiella:** Oversettelse fra finsk med særskilt kontroll mot finske partisipp-/kasuskalker.
 4. **Engelsk → Davvisámegiella:** Oversettelse fra engelsk med konvertering til samisk tegnsetting (`”...”`), tallnorm og aktiv verbstil.
 5. **Davvisámegiella → Davvisámegiella (Direkte språkvask & korrektur):** Skånsom, normtro språkvask av nordsamisk tekst som retter ortografi, stadieveksling, rekšuvdna, tegnsetting og substantivsyke uten å viske ut forfatterens stemme.
 
