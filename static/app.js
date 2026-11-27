@@ -182,7 +182,8 @@ function translateStaticUI() {
     '#creditGemini': 'creditGemini',
     '#creditSatni': 'creditSatni',
     '#creditLanguage': 'creditLanguage',
-    '#creditsPrivacy': 'creditsPrivacy',
+    '#creditsPrivacyIntro': 'creditsPrivacyIntro',
+    '#creditsPrivacyEnd': 'creditsPrivacyEnd',
   };
   for (const [selector, key] of Object.entries(texts)) {
     document.querySelector(selector).textContent = tr(key);
